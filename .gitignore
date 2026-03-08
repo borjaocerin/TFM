@@ -1,0 +1,14 @@
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.env
+*.log
+
+backend/model.pkl
+
+# Data files can be large/private
+data/*.csv
+!data/README.md
+
+.streamlit/

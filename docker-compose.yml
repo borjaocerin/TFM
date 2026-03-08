@@ -1,0 +1,34 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: laliga_backend
+    ports:
+      - "8000:8000"
+    environment:
+      - API_FOOTBALL_KEY=${API_FOOTBALL_KEY:-}
+      - ODDS_API_KEY=${ODDS_API_KEY:-}
+      - DEFAULT_ODDS_SOURCE=${DEFAULT_ODDS_SOURCE:-api}
+      - PREFERRED_BOOKMAKER=${PREFERRED_BOOKMAKER:-}
+    volumes:
+      - ./data:/app/data
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    container_name: laliga_frontend
+    ports:
+      - "8501:8501"
+    environment:
+      - BACKEND_URL=http://backend:8000
+    depends_on:
+      backend:
+        condition: service_healthy
