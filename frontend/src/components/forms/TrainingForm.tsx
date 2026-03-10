@@ -8,14 +8,12 @@ type Props = {
 };
 
 export function TrainingForm({ onSubmit, loading }: Props) {
-  const [datasetPath, setDatasetPath] = useState("data/out/laliga_enriched_model.csv");
   const [useXgb, setUseXgb] = useState(false);
   const [calibration, setCalibration] = useState<"platt" | "isotonic">("platt");
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     await onSubmit({
-      dataset_path: datasetPath,
       use_xgb: useXgb,
       calibration
     });
@@ -24,12 +22,10 @@ export function TrainingForm({ onSubmit, loading }: Props) {
   return (
     <form className="panel" onSubmit={submit}>
       <h2>2) Entrenamiento y calibracion</h2>
+      <p className="small-note">
+        El backend selecciona automaticamente el dataset por defecto (`data/out/laliga_enriched_model.csv`).
+      </p>
       <div className="grid-form">
-        <div className="field">
-          <label>Dataset path</label>
-          <input value={datasetPath} onChange={(event) => setDatasetPath(event.target.value)} />
-        </div>
-
         <div className="field">
           <label>Calibracion</label>
           <select

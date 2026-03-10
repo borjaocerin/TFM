@@ -49,6 +49,7 @@ export function TrainingPage() {
             </p>
             <p>model.pkl: {result.model_path}</p>
             <p>metadata.json: {result.metadata_path}</p>
+            <p>metrics txt: {result.metrics_report_path ?? "-"}</p>
           </div>
 
           <div className="panel">

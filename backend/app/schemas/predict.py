@@ -30,6 +30,34 @@ class PredictResponse(BaseModel):
     predictions: list[dict[str, Any]]
 
 
+class UpcomingFixtureOption(BaseModel):
+    fixture_id: str
+    date: str
+    home_team: str
+    away_team: str
+    label: str
+
+
+class UpcomingFixturesResponse(BaseModel):
+    season_label: str
+    source_path: str
+    rows: int
+    fixtures: list[UpcomingFixtureOption]
+
+
+class PredictUpcomingRequest(BaseModel):
+    date: str
+    home_team: str
+    away_team: str
+
+
+class PredictUpcomingResponse(BaseModel):
+    season_label: str
+    selected_fixture: dict[str, str]
+    prediction: dict[str, Any]
+    output_csv: str
+
+
 class OddsCompareRequest(BaseModel):
     predictions_csv: str | None = Field(default=None, description="Ruta CSV con predicciones")
     predictions: list[dict[str, Any]] | None = Field(

@@ -16,6 +16,10 @@ services:
       - OUTPUT_DIR=${OUTPUT_DIR:-/app/data/out}
       - MODEL_DIR=${MODEL_DIR:-/app/backend/app/models/store}
       - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:5173,http://127.0.0.1:5173}
+      - FIXTURES_API_URL=${FIXTURES_API_URL:-}
+      - FIXTURES_API_KEY=${FIXTURES_API_KEY:-}
+      - FIXTURES_API_HOST=${FIXTURES_API_HOST:-}
+      - FIXTURES_API_TIMEOUT_SEC=${FIXTURES_API_TIMEOUT_SEC:-15}
     volumes:
       - ./data:/app/data
       - ./backend/app/models/store:/app/backend/app/models/store

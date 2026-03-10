@@ -105,19 +105,8 @@ def _normalize_historical_columns(raw: pd.DataFrame, team_map: dict[str, str]) -
 
 def _build_model_dataset(df: pd.DataFrame) -> pd.DataFrame:
     out = df.copy()
-    # Para entrenamiento solo se conservan columnas numericas y claves minimas.
-    keep_prefixes = (
-        "xg_",
-        "xga_",
-        "poss_",
-        "sh_",
-        "sot_",
-        "gf_",
-        "ga_",
-        "points_",
-        "elo_",
-        "odds_",
-    )
+    # Evita fuga: para modelado solo conservar señales pre-partido.
+    # Se permite rolling ("_last"), ELO y cuotas, mas claves/target para trazabilidad.
     fixed_columns = {
         "date",
         "season",
@@ -127,6 +116,19 @@ def _build_model_dataset(df: pd.DataFrame) -> pd.DataFrame:
         "away_goals",
         "result",
         "target",
+    }
+
+    blocked_columns = {
+        "xg_home",
+        "xg_away",
+        "xga_home",
+        "xga_away",
+        "poss_home",
+        "poss_away",
+        "sh_home",
+        "sh_away",
+        "sot_home",
+        "sot_away",
         "xg_diff",
         "xga_diff",
         "poss_diff",
@@ -134,11 +136,18 @@ def _build_model_dataset(df: pd.DataFrame) -> pd.DataFrame:
         "sot_diff",
         "goal_diff",
     }
+
     selected = [
         column
         for column in out.columns
-        if column in fixed_columns or column.startswith(keep_prefixes)
+        if (
+            column in fixed_columns
+            or "_last" in column
+            or column.startswith("elo_")
+            or column.startswith("odds_")
+        )
     ]
+    selected = [column for column in selected if column not in blocked_columns]
     selected = sorted(set(selected), key=selected.index)
     return out[selected]
 

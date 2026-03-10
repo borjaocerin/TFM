@@ -23,6 +23,7 @@ class TrainResponse(BaseModel):
     model_path: str
     metadata_path: str
     reliability_plot: str | None = None
+    metrics_report_path: str | None = None
 
 
 class ModelStatusResponse(BaseModel):

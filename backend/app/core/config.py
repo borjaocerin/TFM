@@ -21,6 +21,10 @@ class Settings(BaseSettings):
     cors_origins_raw: str = Field(
         default="http://localhost:5173,http://127.0.0.1:5173", alias="CORS_ORIGINS"
     )
+    fixtures_api_url: str | None = Field(default=None, alias="FIXTURES_API_URL")
+    fixtures_api_key: str | None = Field(default=None, alias="FIXTURES_API_KEY")
+    fixtures_api_host: str | None = Field(default=None, alias="FIXTURES_API_HOST")
+    fixtures_api_timeout_sec: int = Field(default=15, alias="FIXTURES_API_TIMEOUT_SEC")
 
     model_config = SettingsConfigDict(
         env_file=REPO_ROOT / ".env",

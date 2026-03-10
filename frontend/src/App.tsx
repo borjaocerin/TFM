@@ -1,18 +1,14 @@
-import { NavLink, Route, Routes } from "react-router-dom";
+import { NavLink, Navigate, Route, Routes } from "react-router-dom";
 import { useEffect } from "react";
 
 import { getActiveModel } from "./lib/api";
 import { t } from "./lib/i18n";
 import { useAppStore } from "./lib/state/appStore";
 import { DatasetsPage } from "./routes/DatasetsPage";
-import { TrainingPage } from "./routes/TrainingPage";
-import { PredictPage } from "./routes/PredictPage";
 import { OddsPage } from "./routes/OddsPage";
 
 const navItems = [
-  { to: "/", labelKey: "nav.datasets" },
-  { to: "/training", labelKey: "nav.training" },
-  { to: "/predict", labelKey: "nav.predict" },
+  { to: "/", labelKey: "nav.home" },
   { to: "/odds", labelKey: "nav.odds" }
 ] as const;
 
@@ -23,6 +19,15 @@ function App() {
   const setModelMetadata = useAppStore((state) => state.setModelMetadata);
   const setToast = useAppStore((state) => state.setToast);
   const toast = useAppStore((state) => state.toast);
+
+  const bestModel =
+    modelMetadata && typeof modelMetadata["best_model"] === "string"
+      ? modelMetadata["best_model"]
+      : "-";
+  const trainedAt =
+    modelMetadata && typeof modelMetadata["trained_at"] === "string"
+      ? modelMetadata["trained_at"]
+      : "-";
 
   useEffect(() => {
     getActiveModel()
@@ -58,8 +63,8 @@ function App() {
             <strong>{t(locale, "header.activeModel")}</strong>
             {modelMetadata ? (
               <>
-                <span>{modelMetadata.best_model}</span>
-                <span>{modelMetadata.trained_at}</span>
+                <span>{bestModel}</span>
+                <span>{trainedAt}</span>
               </>
             ) : (
               <span>{t(locale, "header.noModel")}</span>
@@ -84,9 +89,10 @@ function App() {
       <main className="content">
         <Routes>
           <Route path="/" element={<DatasetsPage />} />
-          <Route path="/training" element={<TrainingPage />} />
-          <Route path="/predict" element={<PredictPage />} />
           <Route path="/odds" element={<OddsPage />} />
+          <Route path="/training" element={<Navigate to="/" replace />} />
+          <Route path="/predict" element={<Navigate to="/" replace />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>
 

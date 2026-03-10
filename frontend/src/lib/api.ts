@@ -53,6 +53,39 @@ export type TrainResponse = {
   model_path: string;
   metadata_path: string;
   reliability_plot?: string;
+  metrics_report_path?: string;
+};
+
+export type UpcomingFixtureOption = {
+  fixture_id: string;
+  date: string;
+  home_team: string;
+  away_team: string;
+  label: string;
+};
+
+export type UpcomingFixturesResponse = {
+  season_label: string;
+  source_path: string;
+  rows: number;
+  fixtures: UpcomingFixtureOption[];
+};
+
+export type PredictUpcomingPayload = {
+  date: string;
+  home_team: string;
+  away_team: string;
+};
+
+export type PredictUpcomingResponse = {
+  season_label: string;
+  selected_fixture: {
+    date: string;
+    home_team: string;
+    away_team: string;
+  };
+  prediction: Record<string, unknown>;
+  output_csv: string;
 };
 
 export type PredictPayload = {
@@ -104,6 +137,18 @@ export async function getActiveModel(): Promise<{
   metadata: Record<string, unknown> | null;
 }> {
   const response = await api.get("/model/active");
+  return response.data;
+}
+
+export async function getUpcomingFixtures(): Promise<UpcomingFixturesResponse> {
+  const response = await api.get<UpcomingFixturesResponse>("/predict/options/upcoming");
+  return response.data;
+}
+
+export async function predictUpcomingFixture(
+  payload: PredictUpcomingPayload
+): Promise<PredictUpcomingResponse> {
+  const response = await api.post<PredictUpcomingResponse>("/predict/upcoming", payload);
   return response.data;
 }
 

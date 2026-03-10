@@ -176,7 +176,16 @@ def _normalize_fixture_columns(fixtures: pd.DataFrame) -> pd.DataFrame:
     if "AwayTeam" in out.columns:
         out = out.rename(columns={"AwayTeam": "away_team"})
 
-    out["date"] = pd.to_datetime(out["date"], errors="coerce", dayfirst=True).dt.strftime("%Y-%m-%d")
+    raw_dates = out["date"].astype(str).str.strip()
+    parsed_iso = pd.to_datetime(raw_dates, errors="coerce", format="%Y-%m-%d")
+    parsed_dayfirst = pd.to_datetime(raw_dates, errors="coerce", dayfirst=True)
+    parsed_standard = pd.to_datetime(raw_dates, errors="coerce", dayfirst=False)
+    preferred_fallback = (
+        parsed_dayfirst
+        if int(parsed_dayfirst.notna().sum()) > int(parsed_standard.notna().sum())
+        else parsed_standard
+    )
+    out["date"] = parsed_iso.fillna(preferred_fallback).dt.strftime("%Y-%m-%d")
     return out
 
 

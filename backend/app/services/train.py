@@ -18,7 +18,9 @@ from sklearn.preprocessing import StandardScaler
 
 from app.core.config import settings
 from app.models.model_store import ModelStore
+from app.schemas.datasets import DatasetIngestRequest
 from app.schemas.model import TrainRequest
+from app.services.datasets import ingest_datasets
 from app.services.evaluation import compute_classification_metrics, reliability_points
 
 matplotlib.use("Agg")
@@ -31,13 +33,61 @@ except Exception:  # pragma: no cover - optional dependency
     XGB_AVAILABLE = False
 
 
+LEAKAGE_COLUMNS = {
+    "xg_home",
+    "xg_away",
+    "xga_home",
+    "xga_away",
+    "poss_home",
+    "poss_away",
+    "sh_home",
+    "sh_away",
+    "sot_home",
+    "sot_away",
+    "xg_diff",
+    "xga_diff",
+    "poss_diff",
+    "sh_diff",
+    "sot_diff",
+    "goal_diff",
+}
+
+
 def _resolve_dataset_path(dataset_path: str | None) -> Path:
     if dataset_path:
         path = Path(dataset_path)
         if path.is_absolute():
             return path
         return (settings.data_dir.parent / dataset_path).resolve()
-    return settings.output_dir / "laliga_enriched_model.csv"
+
+    default_model_path = settings.output_dir / "laliga_enriched_model.csv"
+    if default_model_path.exists():
+        return default_model_path
+
+    historical_csv = settings.data_dir / "historical" / "laliga_merged_matches.csv"
+    football_data_dir = settings.data_dir / "football-data"
+    elo_csv = settings.data_dir / "elo" / "ELO_RATINGS.csv"
+    team_map = settings.data_dir.parent / "etl" / "team_name_map_es.json"
+
+    if not historical_csv.exists():
+        raise FileNotFoundError(
+            f"No existe historico base en {historical_csv}. Colocalo para entrenar."
+        )
+    if not football_data_dir.exists():
+        raise FileNotFoundError(
+            f"No existe directorio football-data en {football_data_dir}."
+        )
+
+    ingest_datasets(
+        DatasetIngestRequest(
+            historical=str(historical_csv),
+            football_data_dir=str(football_data_dir),
+            elo_csv=str(elo_csv) if elo_csv.exists() else None,
+            team_map=str(team_map) if team_map.exists() else None,
+            windows=[5, 10],
+        )
+    )
+    return default_model_path
 
 
 def _load_training_data(dataset_path: Path) -> tuple[pd.DataFrame, pd.Series, list[str]]:
@@ -66,6 +116,8 @@ def _load_training_data(dataset_path: Path) -> tuple[pd.DataFrame, pd.Series, li
         "away_goals",
         "target",
     }
+    excluded = excluded | LEAKAGE_COLUMNS
+
     feature_columns = [
         column
         for column in df.columns
@@ -169,6 +221,62 @@ def _save_reliability_plot(y_true: np.ndarray, y_prob: np.ndarray) -> str:
     return f"/static/{output_path.name}"
 
 
+def _write_metrics_report(
+    trained_at: str,
+    best_model_name: str,
+    cv_metrics: dict[str, float],
+    leaderboard: list[dict[str, Any]],
+    dataset_path: Path,
+    fit_metrics: dict[str, float] | None = None,
+) -> Path:
+    settings.output_dir.mkdir(parents=True, exist_ok=True)
+    report_path = settings.output_dir / "model_metrics.txt"
+
+    lines: list[str] = [
+        "MODEL METRICS REPORT",
+        "====================",
+        f"trained_at_utc: {trained_at}",
+        f"dataset_path: {dataset_path}",
+        f"best_model: {best_model_name}",
+        "",
+        "GLOBAL METRICS (TIME-SPLIT CV)",
+        f"log_loss: {cv_metrics.get('log_loss', 0.0):.6f}",
+        f"brier: {cv_metrics.get('brier', 0.0):.6f}",
+        f"ece: {cv_metrics.get('ece', 0.0):.6f}",
+        f"accuracy: {cv_metrics.get('accuracy', 0.0):.6f}",
+        f"f1_macro: {cv_metrics.get('f1_macro', 0.0):.6f}",
+        "",
+        "LEADERBOARD",
+    ]
+
+    if fit_metrics is not None:
+        lines.extend(
+            [
+                "",
+                "FIT METRICS (IN-SAMPLE, SOLO REFERENCIA)",
+                f"fit_log_loss: {fit_metrics.get('log_loss', 0.0):.6f}",
+                f"fit_brier: {fit_metrics.get('brier', 0.0):.6f}",
+                f"fit_ece: {fit_metrics.get('ece', 0.0):.6f}",
+                f"fit_accuracy: {fit_metrics.get('accuracy', 0.0):.6f}",
+                f"fit_f1_macro: {fit_metrics.get('f1_macro', 0.0):.6f}",
+            ]
+        )
+
+    for item in leaderboard:
+        lines.append(
+            " - "
+            + f"{item['model']}: "
+            + f"log_loss={float(item['log_loss']):.6f}, "
+            + f"accuracy={float(item['accuracy']):.6f}, "
+            + f"brier={float(item['brier']):.6f}, "
+            + f"ece={float(item['ece']):.6f}, "
+            + f"f1_macro={float(item['f1_macro']):.6f}"
+        )
+
+    report_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return report_path
+
+
 def train_and_calibrate(request: TrainRequest) -> dict[str, Any]:
     dataset_path = _resolve_dataset_path(request.dataset_path)
     X, y, feature_columns = _load_training_data(dataset_path)
@@ -183,17 +291,31 @@ def train_and_calibrate(request: TrainRequest) -> dict[str, Any]:
 
     leaderboard = sorted(leaderboard, key=lambda item: (item["log_loss"], -item["accuracy"]))
     best_model_name = str(leaderboard[0]["model"])
+    best_cv_metrics = {
+        key: float(value)
+        for key, value in leaderboard[0].items()
+        if key != "model"
+    }
 
     best_pipeline = _build_pipeline(best_model_name, estimators[best_model_name])
     method = "sigmoid" if request.calibration == "platt" else "isotonic"
     calibrated = CalibratedClassifierCV(estimator=best_pipeline, method=method, cv=3)
     calibrated.fit(X, y)
 
-    train_prob = calibrated.predict_proba(X)
-    train_metrics = compute_classification_metrics(y.to_numpy(), train_prob)
-    reliability_plot = _save_reliability_plot(y.to_numpy(), train_prob)
+    fit_prob = calibrated.predict_proba(X)
+    fit_metrics = compute_classification_metrics(y.to_numpy(), fit_prob)
+    reliability_plot = _save_reliability_plot(y.to_numpy(), fit_prob)
 
     trained_at = datetime.now(timezone.utc).isoformat()
+    metrics_report_path = _write_metrics_report(
+        trained_at=trained_at,
+        best_model_name=best_model_name,
+        cv_metrics=best_cv_metrics,
+        leaderboard=leaderboard,
+        dataset_path=dataset_path,
+        fit_metrics=fit_metrics,
+    )
+
     metadata = {
         "trained_at": trained_at,
         "dataset_path": str(dataset_path),
@@ -201,9 +323,11 @@ def train_and_calibrate(request: TrainRequest) -> dict[str, Any]:
         "rows_trained": int(len(X)),
         "best_model": best_model_name,
         "calibration": request.calibration,
-        "metrics": train_metrics,
+        "metrics": best_cv_metrics,
+        "fit_metrics": fit_metrics,
         "leaderboard": leaderboard,
         "reliability_plot": reliability_plot,
+        "metrics_report_path": str(metrics_report_path),
     }
     payload = {
         "model": calibrated,
@@ -215,11 +339,12 @@ def train_and_calibrate(request: TrainRequest) -> dict[str, Any]:
 
     return {
         "best_model": best_model_name,
-        "metrics": train_metrics,
+        "metrics": best_cv_metrics,
         "leaderboard": leaderboard,
         "model_path": str(model_path),
         "metadata_path": str(metadata_path),
         "reliability_plot": reliability_plot,
+        "metrics_report_path": str(metrics_report_path),
     }
 
 
