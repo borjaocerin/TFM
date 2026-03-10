@@ -1,17 +1,12 @@
-FROM python:3.11-slim
-
-ENV PYTHONDONTWRITEBYTECODE=1
-ENV PYTHONUNBUFFERED=1
+FROM node:20-alpine
 
 WORKDIR /app
 
-COPY frontend/requirements.txt /app/frontend/requirements.txt
-RUN pip install --no-cache-dir -r /app/frontend/requirements.txt
+COPY frontend/package.json /app/package.json
+RUN npm install
 
-COPY frontend /app/frontend
+COPY frontend /app
 
-WORKDIR /app/frontend
+EXPOSE 5173
 
-EXPOSE 8501
-
-CMD ["streamlit", "run", "app.py", "--server.address=0.0.0.0", "--server.port=8501"]
+CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0", "--port", "5173"]

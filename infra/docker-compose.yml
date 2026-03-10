@@ -1,13 +1,13 @@
 services:
   api:
     build:
-      context: .
+      context: ..
       dockerfile: backend/Dockerfile
     container_name: tfm_laliga_api
     ports:
       - "8000:8000"
     env_file:
-      - .env
+      - ../.env
     environment:
       - APP_ENV=${APP_ENV:-dev}
       - TZ=${TZ:-Europe/Madrid}
@@ -17,18 +17,18 @@ services:
       - MODEL_DIR=${MODEL_DIR:-/app/backend/app/models/store}
       - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:5173,http://127.0.0.1:5173}
     volumes:
-      - ./data:/app/data
-      - ./backend/app/models/store:/app/backend/app/models/store
+      - ../data:/app/data
+      - ../backend/app/models/store:/app/backend/app/models/store
 
   frontend:
     build:
-      context: .
+      context: ..
       dockerfile: frontend/Dockerfile
     container_name: tfm_laliga_frontend
     ports:
       - "5173:5173"
     env_file:
-      - .env
+      - ../.env
     environment:
       - VITE_API_BASE_URL=${VITE_API_BASE_URL:-http://localhost:8000/api/v1}
       - VITE_BACKEND_ORIGIN=${VITE_BACKEND_ORIGIN:-http://localhost:8000}
@@ -37,14 +37,13 @@ services:
 
   etl:
     build:
-      context: .
+      context: ..
       dockerfile: etl/Dockerfile
     container_name: tfm_laliga_etl
     env_file:
-      - .env
+      - ../.env
     volumes:
-      - ./data:/app/data
-      - ./etl:/app/etl
-      - ./backend:/app/backend
+      - ../data:/app/data
+      - ../etl:/app/etl
+      - ../backend:/app/backend
     command: ["--help"]
-
