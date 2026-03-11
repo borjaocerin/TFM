@@ -96,6 +96,7 @@ export function DatasetsPage() {
   const [selectedFixtureId, setSelectedFixtureId] = useState<string>("");
   const [predictionResult, setPredictionResult] = useState<PredictUpcomingResponse | null>(null);
   const [selectedRound, setSelectedRound] = useState<string>("");
+  const [searchText, setSearchText] = useState<string>("");
   const setToast = useAppStore((state) => state.setToast);
 
   const selectedFixture = useMemo(
@@ -172,14 +173,32 @@ export function DatasetsPage() {
         : "2 (Visitante)";
 
   const rounds = useMemo(() => {
-    const unique = Array.from(new Set(fixtures.map(f => (f.round || "").trim()).filter(r => r)));
-    return unique.sort();
+    const unique = Array.from(new Set(fixtures.map(f => (f.round || "").trim()).filter(r => r && r !== 'undefined' && r !== 'null')));
+    return unique.length > 0 ? unique.sort() : [];
   }, [fixtures]);
 
   const filteredFixtures = useMemo(() => {
-    if (!selectedRound) return fixtures;
-    return fixtures.filter(f => (f.round || "").trim() === selectedRound);
-  }, [fixtures, selectedRound]);
+    let filtered = fixtures;
+    if (selectedRound) {
+      filtered = filtered.filter(f => (f.round || "").trim() === selectedRound);
+    }
+    if (searchText.trim()) {
+      const search = searchText.trim().toLowerCase();
+      filtered = filtered.filter(f => {
+        const home = f.home_team.toLowerCase();
+        const away = f.away_team.toLowerCase();
+        const label = f.label?.toLowerCase() || "";
+        return (
+          home.includes(search) ||
+          away.includes(search) ||
+          label.includes(search) ||
+          `${home} vs ${away}`.includes(search) ||
+          `${away} vs ${home}`.includes(search)
+        );
+      });
+    }
+    return filtered;
+  }, [fixtures, selectedRound, searchText]);
 
   return (
     <>
@@ -203,6 +222,16 @@ export function DatasetsPage() {
               <option key={r} value={r}>{r}</option>
             ))}
           </select>
+        </div>
+        <div className="field">
+          <label>Buscar partido</label>
+          <input
+            type="text"
+            value={searchText}
+            onChange={e => setSearchText(e.target.value)}
+            placeholder="Buscar equipos o partido..."
+            style={{ width: "100%", marginTop: "0.5rem" }}
+          />
         </div>
         <div className="fixture-cards-grid">
           {filteredFixtures.length === 0 && (
