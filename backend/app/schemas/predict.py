@@ -43,6 +43,7 @@ class UpcomingFixturesResponse(BaseModel):
     source_path: str
     rows: int
     fixtures: list[UpcomingFixtureOption]
+    error: str | None = None
 
 
 class PredictUpcomingRequest(BaseModel):
@@ -55,6 +56,7 @@ class PredictUpcomingResponse(BaseModel):
     season_label: str
     selected_fixture: dict[str, str]
     prediction: dict[str, Any]
+    market_odds: dict[str, Any] | None = None
     output_csv: str
 
 
@@ -79,3 +81,28 @@ class OddsCompareResponse(BaseModel):
     metrics: dict[str, float | None]
     value_bets: list[dict[str, Any]]
     output_csv: str
+
+
+class UpcomingOddsOption(BaseModel):
+    fixture_id: str
+    event_id: str
+    date: str
+    home_team: str
+    away_team: str
+    source: str
+    bookmakers: int
+    odds_avg_h: float | None = None
+    odds_avg_d: float | None = None
+    odds_avg_a: float | None = None
+    odds_best_h: float | None = None
+    odds_best_d: float | None = None
+    odds_best_a: float | None = None
+
+
+class UpcomingOddsResponse(BaseModel):
+    sport_key: str
+    source_path: str
+    rows: int
+    requests_remaining: str
+    requests_used: str
+    odds: list[UpcomingOddsOption]

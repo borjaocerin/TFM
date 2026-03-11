@@ -62,6 +62,7 @@ export type UpcomingFixtureOption = {
   home_team: string;
   away_team: string;
   label: string;
+  round?: string; // jornada
 };
 
 export type UpcomingFixturesResponse = {
@@ -69,6 +70,7 @@ export type UpcomingFixturesResponse = {
   source_path: string;
   rows: number;
   fixtures: UpcomingFixtureOption[];
+  error?: string | null;
 };
 
 export type PredictUpcomingPayload = {
@@ -85,7 +87,33 @@ export type PredictUpcomingResponse = {
     away_team: string;
   };
   prediction: Record<string, unknown>;
+  market_odds?: Record<string, unknown> | null;
   output_csv: string;
+};
+
+export type UpcomingOddsOption = {
+  fixture_id: string;
+  event_id: string;
+  date: string;
+  home_team: string;
+  away_team: string;
+  source: string;
+  bookmakers: number;
+  odds_avg_h?: number | null;
+  odds_avg_d?: number | null;
+  odds_avg_a?: number | null;
+  odds_best_h?: number | null;
+  odds_best_d?: number | null;
+  odds_best_a?: number | null;
+};
+
+export type UpcomingOddsResponse = {
+  sport_key: string;
+  source_path: string;
+  rows: number;
+  requests_remaining: string;
+  requests_used: string;
+  odds: UpcomingOddsOption[];
 };
 
 export type PredictPayload = {
@@ -149,6 +177,13 @@ export async function predictUpcomingFixture(
   payload: PredictUpcomingPayload
 ): Promise<PredictUpcomingResponse> {
   const response = await api.post<PredictUpcomingResponse>("/predict/upcoming", payload);
+  return response.data;
+}
+
+export async function getUpcomingOdds(limit = 100): Promise<UpcomingOddsResponse> {
+  const response = await api.get<UpcomingOddsResponse>("/odds/upcoming", {
+    params: { limit }
+  });
   return response.data;
 }
 

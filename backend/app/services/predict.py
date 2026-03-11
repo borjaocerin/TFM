@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import unicodedata
 from datetime import date, datetime
 from pathlib import Path
 from typing import Any
@@ -13,6 +14,7 @@ import pandas as pd
 from app.core.config import settings
 from app.models.model_store import ModelStore
 from app.schemas.predict import OddsCompareRequest, PredictRequest, PredictUpcomingRequest
+from app.services.odds_api import fetch_upcoming_laliga_odds, find_fixture_odds
 from app.services.elo import enrich_with_elo
 from app.services.evaluation import compare_market_vs_model
 from app.services.features import enrich_fixtures
@@ -36,6 +38,7 @@ def _default_source_paths() -> dict[str, Path]:
         "elo_csv": settings.data_dir / "elo" / "ELO_RATINGS.csv",
         "team_map": settings.data_dir.parent / "etl" / "team_name_map_es.json",
         "fixtures_csv": settings.data_dir / "fixtures" / "fixtures.csv",
+        "manual_fixtures_json": settings.data_dir / "fixtures" / "proximosPartidos.json",
         "fallback_fixtures": settings.data_dir.parent / "matches_laliga.csv",
         "fallback_fixtures_alt": settings.data_dir.parent / "LaLiga_Matches.csv",
         "historical_fallback": settings.data_dir / "historical" / "laliga_merged_matches.csv",
@@ -164,8 +167,8 @@ def _canonicalize_fixture_source(raw: pd.DataFrame, team_map: dict[str, str]) ->
         )
         out["played"] = played_result | played_goals
 
-    out["home_team"] = out["home_team"].map(lambda value: team_map.get(str(value), str(value)))
-    out["away_team"] = out["away_team"].map(lambda value: team_map.get(str(value), str(value)))
+    out["home_team"] = out["home_team"].map(lambda value: _canonical_team_name(value, team_map))
+    out["away_team"] = out["away_team"].map(lambda value: _canonical_team_name(value, team_map))
     out["date_dt"] = pd.to_datetime(out["date"], errors="coerce")
 
     out = out.dropna(subset=["date_dt", "home_team", "away_team"])
@@ -226,15 +229,20 @@ def _build_fixtures_response(
         date_iso = str(row.date)
         home_team = str(row.home_team)
         away_team = str(row.away_team)
-        fixtures.append(
-            {
-                "fixture_id": _fixture_id(date_iso, home_team, away_team),
-                "date": date_iso,
-                "home_team": home_team,
-                "away_team": away_team,
-                "label": f"{date_iso} | {home_team} vs {away_team}",
-            }
-        )
+        fixture = {
+            "fixture_id": _fixture_id(date_iso, home_team, away_team),
+            "date": date_iso,
+            "home_team": home_team,
+            "away_team": away_team,
+            "label": f"{date_iso} | {home_team} vs {away_team}",
+            "round": ""  # valor por defecto
+        }
+        # Si el DataFrame tiene columna 'round', usar su valor aunque sea vacía
+        if hasattr(row, "round"):
+            round_val = getattr(row, "round")
+            if round_val is not None and str(round_val).strip().lower() not in ("nan", "none"):
+                fixture["round"] = str(round_val).strip()
+        fixtures.append(fixture)
 
     return {
         "season_label": season_label,
@@ -278,6 +286,97 @@ def _effective_fixtures_api_key() -> str | None:
     return _local_api_key_fallback()
 
 
+def _normalize_text_basic(value: Any) -> str:
+    text = str(value or "").strip().lower()
+    if text == "":
+        return ""
+    text = unicodedata.normalize("NFKD", text)
+    text = "".join(char for char in text if not unicodedata.combining(char))
+    for token in [".", ",", ";", ":", "'", '"', "-", "_"]:
+        text = text.replace(token, " ")
+    return " ".join(text.split())
+
+
+def _canonical_team_name(team_name: Any, team_map: dict[str, str]) -> str:
+    raw = str(team_name or "").strip()
+    if raw == "":
+        return ""
+
+    direct = team_map.get(raw)
+    if direct:
+        return str(direct)
+
+    normalized_input = _normalize_text_basic(raw)
+
+    normalized_map: dict[str, str] = {}
+    for source_name, canonical_name in team_map.items():
+        canonical = str(canonical_name)
+        normalized_map[_normalize_text_basic(source_name)] = canonical
+        normalized_map[_normalize_text_basic(canonical)] = canonical
+
+    manual_aliases = {
+        "deportivo alaves": "Alaves",
+        "girona fc": "Girona",
+        "villarreal cf": "Villarreal",
+        "rcd mallorca": "Mallorca",
+        "fc barcelona": "Barcelona",
+        "valencia cf": "Valencia",
+        "rc celta de vigo": "Celta",
+        "club atletico de madrid": "Atletico Madrid",
+        "ca osasuna": "Osasuna",
+        "real madrid cf": "Real Madrid",
+        "real betis balompie": "Betis",
+        "real sociedad de futbol": "Real Sociedad",
+        "rayo vallecano de madrid": "Rayo Vallecano",
+        "levante ud": "Levante",
+        "getafe cf": "Getafe",
+        "elche cf": "Elche",
+        "sevilla fc": "Sevilla",
+        "rcd espanyol de barcelona": "Espanyol",
+    }
+    for alias, canonical in manual_aliases.items():
+        normalized_map[_normalize_text_basic(alias)] = canonical
+
+    mapped = normalized_map.get(normalized_input)
+    return mapped if mapped else raw
+
+
+def _as_bool(value: Any) -> bool:
+    if isinstance(value, bool):
+        return value
+    if value is None or pd.isna(value):
+        return False
+    text = str(value).strip().lower()
+    return text in {"1", "true", "yes", "y", "si", "s"}
+
+
+def _normalize_competition_text(value: Any) -> str:
+    return _normalize_text_basic(value)
+
+
+def _is_laliga_competition(name: Any, country: Any, code: Any = None) -> bool:
+    name_text = _normalize_competition_text(name)
+    country_text = _normalize_competition_text(country)
+    code_text = _normalize_competition_text(code)
+
+    if code_text == "pd":
+        return True
+
+    if name_text and not any(
+        token in name_text
+        for token in ["laliga", "la liga", "primera division", "spanish la liga"]
+    ):
+        return False
+
+    if country_text and country_text not in {"spain", "espana", "españa"}:
+        return False
+
+    if not name_text and not country_text and code_text == "":
+        return True
+
+    return True
+
+
 def _extract_rows_from_api_payload(payload: Any) -> list[dict[str, str]]:
     rows: list[dict[str, str]] = []
 
@@ -311,9 +410,27 @@ def _extract_rows_from_api_payload(payload: Any) -> list[dict[str, str]]:
                 "ABANDONED",
                 "SUSPENDED",
             }
+            payload_competition = (
+                payload.get("competition") if isinstance(payload.get("competition"), dict) else {}
+            )
             for match in matches:
                 if not isinstance(match, dict):
                     continue
+
+                match_competition = (
+                    match.get("competition") if isinstance(match.get("competition"), dict) else {}
+                )
+                competition_info = match_competition or payload_competition
+                if competition_info:
+                    if not _is_laliga_competition(
+                        competition_info.get("name"),
+                        competition_info.get("area", {}).get("name")
+                        if isinstance(competition_info.get("area"), dict)
+                        else competition_info.get("country"),
+                        competition_info.get("code"),
+                    ):
+                        continue
+
                 status = str(match.get("status", "")).upper().strip()
                 if status in blocked_status:
                     continue
@@ -332,6 +449,16 @@ def _extract_rows_from_api_payload(payload: Any) -> list[dict[str, str]]:
             for item in response_rows:
                 if not isinstance(item, dict):
                     continue
+
+                league = item.get("league") if isinstance(item.get("league"), dict) else {}
+                if league:
+                    if not _is_laliga_competition(
+                        league.get("name"),
+                        league.get("country"),
+                        league.get("code") or league.get("id"),
+                    ):
+                        continue
+
                 fixture = item.get("fixture") if isinstance(item.get("fixture"), dict) else {}
                 status_obj = fixture.get("status") if isinstance(fixture.get("status"), dict) else {}
                 status_short = str(status_obj.get("short", "")).upper().strip()
@@ -356,6 +483,14 @@ def _extract_rows_from_api_payload(payload: Any) -> list[dict[str, str]]:
             for event in events:
                 if not isinstance(event, dict):
                     continue
+
+                if not _is_laliga_competition(
+                    event.get("strLeague") or event.get("league"),
+                    event.get("strCountry") or event.get("country"),
+                    event.get("idLeague"),
+                ):
+                    continue
+
                 status_value = str(event.get("strStatus", "")).strip().lower()
                 if status_value not in {"", "not started", "ns", "tbd"}:
                     continue
@@ -368,24 +503,209 @@ def _extract_rows_from_api_payload(payload: Any) -> list[dict[str, str]]:
         for item in payload:
             if not isinstance(item, dict):
                 continue
-            add_row(item.get("date"), item.get("home_team"), item.get("away_team"))
+            date_value = item.get("date") or item.get("utcDate") or item.get("commence_time")
+            home_team = item.get("home_team") or item.get("strHomeTeam")
+            away_team = item.get("away_team") or item.get("strAwayTeam")
+            if home_team is None and isinstance(item.get("homeTeam"), dict):
+                home_team = item["homeTeam"].get("name")
+            if away_team is None and isinstance(item.get("awayTeam"), dict):
+                away_team = item["awayTeam"].get("name")
+            add_row(date_value, home_team, away_team)
+
+    return rows
+
+
+def _extract_rows_from_manual_json(payload: Any) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+
+    matches: Any = None
+    if isinstance(payload, dict):
+        matches = payload.get("matches")
+    elif isinstance(payload, list):
+        matches = payload
+
+    if not isinstance(matches, list):
+        return rows
+
+    for item in matches:
+        if not isinstance(item, dict):
+            continue
+
+        date_value = item.get("date")
+        home_team = item.get("team1") or item.get("home_team") or item.get("homeTeam")
+        away_team = item.get("team2") or item.get("away_team") or item.get("awayTeam")
+
+        if date_value is None or home_team is None or away_team is None:
+            continue
+
+        date_text = str(date_value).strip()
+        home_text = str(home_team).strip()
+        away_text = str(away_team).strip()
+        if date_text == "" or home_text == "" or away_text == "":
+            continue
+
+        played = False
+        score = item.get("score") if isinstance(item.get("score"), dict) else {}
+        ft = score.get("ft") if isinstance(score, dict) else None
+        if isinstance(ft, list) and len(ft) >= 2:
+            home_ft = ft[0]
+            away_ft = ft[1]
+            if home_ft is not None and away_ft is not None:
+                if str(home_ft).strip() != "" and str(away_ft).strip() != "":
+                    played = True
+
+        row = {
+            "date": date_text,
+            "home_team": home_text,
+            "away_team": away_text,
+            "played": played,
+        }
+        round_value = item.get("round") or item.get("jornada") or item.get("matchday")
+        if round_value is not None:
+            row["round"] = str(round_value).strip()
+        rows.append(row)
 
     return rows
 
 
 def _canonicalize_api_rows(rows: list[dict[str, str]], team_map: dict[str, str]) -> pd.DataFrame:
     if not rows:
-        return pd.DataFrame(columns=["date", "home_team", "away_team", "played", "date_dt"])
+        return pd.DataFrame(columns=["date", "home_team", "away_team", "played", "date_dt", "round"])
 
     out = pd.DataFrame(rows)
+    # Forzar columna 'round' aunque falte en algunos registros
+    if "round" not in out.columns:
+        out["round"] = None
     out["date_dt"] = pd.to_datetime(out["date"], errors="coerce", utc=True).dt.tz_localize(None)
     out = out.dropna(subset=["date_dt"])
     out["date"] = out["date_dt"].dt.strftime("%Y-%m-%d")
-    out["home_team"] = out["home_team"].map(lambda value: team_map.get(str(value), str(value)))
-    out["away_team"] = out["away_team"].map(lambda value: team_map.get(str(value), str(value)))
-    out["played"] = False
+    out["home_team"] = out["home_team"].map(lambda value: _canonical_team_name(value, team_map))
+    out["away_team"] = out["away_team"].map(lambda value: _canonical_team_name(value, team_map))
+    if "played" in out.columns:
+        out["played"] = out["played"].map(_as_bool)
+    else:
+        out["played"] = False
     out = out.drop_duplicates(subset=["date", "home_team", "away_team"], keep="last")
+    # Mantener columna 'round' como string
+    out["round"] = out["round"].astype(str)
     return out
+
+
+def _load_laliga_team_pool(team_map: dict[str, str]) -> set[str]:
+    paths = _default_source_paths()
+    candidates = [
+        paths["historical_csv"],
+        paths["historical_fallback"],
+        settings.data_dir / "laliga_merged_matches.csv",
+        settings.data_dir.parent / "backend" / "laliga_merged_matches.csv",
+    ]
+    start_year = _current_season_start_year()
+
+    for candidate_path in candidates:
+        if not candidate_path.exists():
+            continue
+
+        try:
+            raw = pd.read_csv(candidate_path)
+            canonical = _canonicalize_fixture_source(raw, team_map)
+        except Exception:
+            continue
+
+        if canonical.empty:
+            continue
+
+        season_filtered = canonical.copy()
+        if "season_raw" in season_filtered.columns:
+            season_filtered["season_start_year"] = season_filtered["season_raw"].map(_season_start_from_value)
+        else:
+            season_filtered["season_start_year"] = season_filtered["date_dt"].apply(
+                lambda value: value.year if value.month >= 7 else value.year - 1
+            )
+
+        season_filtered = season_filtered[season_filtered["season_start_year"] == start_year]
+        source = season_filtered if not season_filtered.empty else canonical
+
+        teams = set(source["home_team"].astype(str)) | set(source["away_team"].astype(str))
+        clean_teams = {team for team in teams if team and team.lower() != "nan"}
+        if clean_teams:
+            return clean_teams
+
+    return set()
+
+
+def _filter_to_laliga_teams(fixtures: pd.DataFrame, team_map: dict[str, str]) -> pd.DataFrame:
+    team_pool = _load_laliga_team_pool(team_map)
+    if not team_pool:
+        return fixtures
+
+    filtered = fixtures[
+        fixtures["home_team"].astype(str).isin(team_pool)
+        & fixtures["away_team"].astype(str).isin(team_pool)
+    ].copy()
+    return filtered.reset_index(drop=True)
+
+
+def _load_upcoming_from_odds_api(team_map: dict[str, str], season_label: str) -> dict[str, Any] | None:
+    try:
+        odds_payload = fetch_upcoming_laliga_odds(team_map=team_map, limit=200)
+    except Exception as exc:
+        raise ValueError(f"The Odds API: {exc}") from exc
+
+    odds_rows = odds_payload.get("odds")
+    if not isinstance(odds_rows, list) or not odds_rows:
+        return None
+
+    raw_rows: list[dict[str, str]] = []
+    for row in odds_rows:
+        if not isinstance(row, dict):
+            continue
+        raw_rows.append(
+            {
+                "date": str(row.get("date", "")),
+                "home_team": str(row.get("home_team", "")),
+                "away_team": str(row.get("away_team", "")),
+            }
+        )
+
+    canonical = _canonicalize_api_rows(raw_rows, team_map)
+    if canonical.empty:
+        return None
+
+    # The Odds API sport_key is already scoped to soccer_spain_la_liga — skip
+    # the team-pool filter to avoid false negatives from name-format differences.
+    upcoming = _filter_current_season_upcoming(canonical)
+    if upcoming.empty:
+        return None
+
+    source_path = str(odds_payload.get("source_path", "api:the-odds-api"))
+    return _build_fixtures_response(upcoming, season_label, source_path or "api:the-odds-api")
+
+
+def _load_upcoming_from_manual_json(team_map: dict[str, str], season_label: str) -> dict[str, Any] | None:
+    json_path = _default_source_paths()["manual_fixtures_json"]
+    if not json_path.exists():
+        return None
+
+    payload: Any
+    try:
+        payload = json.loads(json_path.read_text(encoding="utf-8"))
+    except Exception:
+        try:
+            payload = json.loads(json_path.read_text(encoding="latin-1"))
+        except Exception:
+            return None
+
+    manual_rows = _extract_rows_from_manual_json(payload)
+    canonical = _canonicalize_api_rows(manual_rows, team_map)
+    if canonical.empty:
+        return None
+
+    # The manual JSON file is expected to be LaLiga-only, so we keep this path permissive.
+    upcoming = _filter_current_season_upcoming(canonical)
+    if upcoming.empty:
+        return None
+
+    return _build_fixtures_response(upcoming, season_label, str(json_path))
 
 
 def _load_upcoming_from_api(team_map: dict[str, str], season_label: str) -> dict[str, Any] | None:
@@ -418,6 +738,10 @@ def _load_upcoming_from_api(team_map: dict[str, str], season_label: str) -> dict
     if canonical.empty:
         return None
 
+    canonical = _filter_to_laliga_teams(canonical, team_map)
+    if canonical.empty:
+        return None
+
     upcoming = _filter_current_season_upcoming(canonical)
     if upcoming.empty:
         return None
@@ -425,16 +749,11 @@ def _load_upcoming_from_api(team_map: dict[str, str], season_label: str) -> dict
     return _build_fixtures_response(upcoming, season_label, f"api:{api_url}")
 
 
-def list_upcoming_fixture_options() -> dict[str, Any]:
-    team_map = _load_team_map()
-    season_label = _current_season_label()
-
-    source_seen: Path | None = None
+def _load_upcoming_from_csv(team_map: dict[str, str], season_label: str) -> dict[str, Any] | None:
     for candidate_path in _candidate_fixtures_sources():
         if not candidate_path.exists():
             continue
 
-        source_seen = candidate_path
         try:
             raw = pd.read_csv(candidate_path)
             canonical = _canonicalize_fixture_source(raw, team_map)
@@ -447,15 +766,77 @@ def list_upcoming_fixture_options() -> dict[str, Any]:
 
         return _build_fixtures_response(upcoming, season_label, str(candidate_path))
 
+    return None
+
+
+def _load_demo_from_csv(team_map: dict[str, str], season_label: str) -> dict[str, Any] | None:
+    """Last-resort: return the most recent historical LaLiga matches as demo fixtures
+    so the UI is never completely empty when no live data source is available."""
+    defaults = _default_source_paths()
+    candidates = [
+        defaults["historical_csv"],
+        defaults["historical_fallback"],
+        settings.data_dir / "laliga_merged_matches.csv",
+    ]
+    for candidate_path in candidates:
+        if not candidate_path.exists():
+            continue
+        try:
+            raw = pd.read_csv(candidate_path)
+            canonical = _canonicalize_fixture_source(raw, team_map)
+        except Exception:
+            continue
+        if canonical.empty:
+            continue
+        # Return the 10 most recent rows as demo options regardless of date
+        recent = canonical.sort_values("date_dt").tail(10).copy()
+        recent = recent.reset_index(drop=True)
+        return _build_fixtures_response(recent, season_label, f"demo:{candidate_path}")
+    return None
+
+
+def list_upcoming_fixture_options() -> dict[str, Any]:
+    team_map = _load_team_map()
+    season_label = _current_season_label()
+    api_url = _effective_fixtures_api_url()
+
+    odds_api_error: str | None = None
+    try:
+        from_odds_api = _load_upcoming_from_odds_api(team_map, season_label)
+        if from_odds_api is not None:
+            return from_odds_api
+    except ValueError as exc:
+        odds_api_error = str(exc)
+
+    from_manual_json = _load_upcoming_from_manual_json(team_map, season_label)
+    if from_manual_json is not None:
+        return from_manual_json
+
     from_api = _load_upcoming_from_api(team_map, season_label)
     if from_api is not None:
         return from_api
 
+    if settings.fixtures_allow_csv_fallback:
+        from_csv = _load_upcoming_from_csv(team_map, season_label)
+        if from_csv is not None:
+            return from_csv
+
+    # Demo fallback: last historical matches so the UI is never completely blank
+    from_demo = _load_demo_from_csv(team_map, season_label)
+    if from_demo is not None:
+        from_demo["error"] = (
+            odds_api_error
+            or "No hay partidos futuros en la API. Mostrando datos historicos de demo."
+        )
+        return from_demo
+
+    error_msg = odds_api_error or "No se encontraron partidos proximos. Comprueba ODDS_API_KEY."
     return {
         "season_label": season_label,
-        "source_path": str(source_seen) if source_seen else "",
+        "source_path": f"api:{api_url}" if api_url else "",
         "rows": 0,
         "fixtures": [],
+        "error": error_msg,
     }
 
 
@@ -589,8 +970,8 @@ def predict_selected_upcoming_match(request: PredictUpcomingRequest) -> dict[str
         [
             {
                 "date": parsed_date.strftime("%Y-%m-%d"),
-                "home_team": team_map.get(request.home_team, request.home_team),
-                "away_team": team_map.get(request.away_team, request.away_team),
+                "home_team": _canonical_team_name(request.home_team, team_map),
+                "away_team": _canonical_team_name(request.away_team, team_map),
             }
         ]
     )
@@ -605,6 +986,22 @@ def predict_selected_upcoming_match(request: PredictUpcomingRequest) -> dict[str
     prediction = predict_matches(PredictRequest(fixtures=enriched.to_dict(orient="records")))
     prediction_row = prediction["predictions"][0] if prediction["predictions"] else {}
 
+    market_odds: dict[str, Any] | None = None
+    try:
+        market_odds = find_fixture_odds(
+            date_iso=str(fixture_df.iloc[0]["date"]),
+            home_team=str(fixture_df.iloc[0]["home_team"]),
+            away_team=str(fixture_df.iloc[0]["away_team"]),
+            team_map=team_map,
+        )
+    except Exception:
+        market_odds = None
+
+    if market_odds is not None:
+        for key in ["odds_avg_h", "odds_avg_d", "odds_avg_a", "odds_best_h", "odds_best_d", "odds_best_a"]:
+            if key in market_odds:
+                prediction_row[key] = market_odds[key]
+
     return {
         "season_label": _current_season_label(),
         "selected_fixture": {
@@ -613,6 +1010,7 @@ def predict_selected_upcoming_match(request: PredictUpcomingRequest) -> dict[str
             "away_team": str(fixture_df.iloc[0]["away_team"]),
         },
         "prediction": prediction_row,
+        "market_odds": market_odds,
         "output_csv": str(prediction["output_csv"]),
     }
 

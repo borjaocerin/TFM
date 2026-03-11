@@ -14,7 +14,7 @@ Este proyecto implementa un flujo completo de analitica aplicada a futbol para u
 6. Comparar el modelo contra cuotas de mercado y detectar value bets.
 7. Exponer todo por API + frontend React para demo.
 
-El sistema esta disenado para funcionar sin scraping automatico y sin dependencias de red por defecto.
+El sistema evita scraping automatico y permite usar APIs oficiales de fixtures/cuotas con fallback configurable.
 
 ## 2. Estado actual (implementado)
 
@@ -321,6 +321,16 @@ Efecto:
 3. Marca value bets por `EV = p_model * odd - 1`.
 4. Exporta `data/out/predictions_with_odds.csv`.
 
+### 8.8 Cuotas live (The Odds API)
+
+`GET /odds/upcoming?limit=100`
+
+Efecto:
+
+1. Consulta The Odds API para partidos upcoming de LaLiga.
+2. Devuelve cuotas `1/X/2` en formato decimal (`odds_avg_*` y `odds_best_*`).
+3. Expone cabeceras de cuota consumida: `requests_remaining` y `requests_used`.
+
 ## 9. Frontend (demo)
 
 URL: `http://localhost:5173`
@@ -440,6 +450,14 @@ Plantilla en `.env.example`:
 7. `CORS_ORIGINS=http://localhost:5173,http://127.0.0.1:5173`
 8. `VITE_API_BASE_URL=http://localhost:8000/api/v1`
 9. `VITE_BACKEND_ORIGIN=http://localhost:8000`
+10. `FIXTURES_API_URL=https://www.thesportsdb.com/api/v1/json/3/eventsnextleague.php?id=4335`
+11. `FIXTURES_API_KEY=`
+12. `FIXTURES_ALLOW_CSV_FALLBACK=false`
+13. `ODDS_API_KEY=`
+14. `ODDS_API_SPORT_KEY=soccer_spain_la_liga`
+15. `ODDS_API_REGIONS=eu`
+16. `ODDS_API_MARKETS=h2h`
+17. `ODDS_API_ODDS_FORMAT=decimal`
 
 ## 13. Calidad, tests y estandares
 
@@ -498,6 +516,12 @@ npm run build
 
 1. Si no tienes `make`, usa comandos `docker compose` y `curl` directos.
 2. Si no tienes `curl`, usa Swagger UI en `/docs` para ejecutar endpoints.
+
+### 14.6 The Odds API sin cuotas
+
+1. Verifica `ODDS_API_KEY` o el fichero `oddapikey.txt` en la raiz del repo.
+2. Revisa que `ODDS_API_SPORT_KEY` sea `soccer_spain_la_liga`.
+3. Comprueba cuota de peticiones en `requests_remaining`.
 
 ## 15. Seguridad, legal y gobierno de datos
 

@@ -21,10 +21,23 @@ class Settings(BaseSettings):
     cors_origins_raw: str = Field(
         default="http://localhost:5173,http://127.0.0.1:5173", alias="CORS_ORIGINS"
     )
-    fixtures_api_url: str | None = Field(default=None, alias="FIXTURES_API_URL")
+    fixtures_api_url: str | None = Field(
+        default="https://www.thesportsdb.com/api/v1/json/3/eventsnextleague.php?id=4335",
+        alias="FIXTURES_API_URL",
+    )
     fixtures_api_key: str | None = Field(default=None, alias="FIXTURES_API_KEY")
     fixtures_api_host: str | None = Field(default=None, alias="FIXTURES_API_HOST")
     fixtures_api_timeout_sec: int = Field(default=15, alias="FIXTURES_API_TIMEOUT_SEC")
+    fixtures_allow_csv_fallback: bool = Field(default=False, alias="FIXTURES_ALLOW_CSV_FALLBACK")
+    odds_api_url: str | None = Field(default=None, alias="ODDS_API_URL")
+    odds_api_key: str | None = Field(default=None, alias="ODDS_API_KEY")
+    odds_api_sport_key: str = Field(default="soccer_spain_la_liga", alias="ODDS_API_SPORT_KEY")
+    odds_api_regions: str = Field(default="eu", alias="ODDS_API_REGIONS")
+    odds_api_markets: str = Field(default="h2h", alias="ODDS_API_MARKETS")
+    odds_api_odds_format: str = Field(default="decimal", alias="ODDS_API_ODDS_FORMAT")
+    odds_api_date_format: str = Field(default="iso", alias="ODDS_API_DATE_FORMAT")
+    odds_api_bookmakers: str | None = Field(default=None, alias="ODDS_API_BOOKMAKERS")
+    odds_api_timeout_sec: int = Field(default=15, alias="ODDS_API_TIMEOUT_SEC")
 
     model_config = SettingsConfigDict(
         env_file=REPO_ROOT / ".env",
