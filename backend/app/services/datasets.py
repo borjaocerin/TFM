@@ -9,7 +9,7 @@ import pandas as pd
 
 from app.core.config import settings
 from app.schemas.datasets import DatasetIngestRequest, FixturesFeatureRequest
-from app.services.elo import enrich_with_elo
+from app.services.elo import add_internal_elo_features, enrich_with_elo
 from app.services.features import add_basic_differentials, add_pre_match_rolling_features, add_target_label, enrich_fixtures
 from app.services.football_data import load_football_data
 
@@ -188,6 +188,7 @@ def ingest_datasets(request: DatasetIngestRequest) -> dict[str, Any]:
     merged = historical.merge(fdata, on=["date", "home_team", "away_team"], how="left")
     merged = add_basic_differentials(merged)
     merged = add_pre_match_rolling_features(merged, tuple(request.windows))
+    merged = add_internal_elo_features(merged)
     merged = enrich_with_elo(merged, elo_path, team_map)
     merged = add_target_label(merged)
 

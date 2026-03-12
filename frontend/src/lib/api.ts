@@ -85,6 +85,7 @@ export type PredictUpcomingResponse = {
     date: string;
     home_team: string;
     away_team: string;
+    round?: string;
   };
   prediction: Record<string, unknown>;
   market_odds?: Record<string, unknown> | null;

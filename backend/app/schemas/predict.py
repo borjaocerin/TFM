@@ -36,6 +36,7 @@ class UpcomingFixtureOption(BaseModel):
     home_team: str
     away_team: str
     label: str
+    round: str | None = None
 
 
 class UpcomingFixturesResponse(BaseModel):

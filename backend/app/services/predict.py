@@ -1002,12 +1002,19 @@ def predict_selected_upcoming_match(request: PredictUpcomingRequest) -> dict[str
             if key in market_odds:
                 prediction_row[key] = market_odds[key]
 
+    round_value = ""
+    if "round" in fixture_df.columns:
+        raw_round = fixture_df.iloc[0]["round"]
+        if raw_round is not None and str(raw_round).strip().lower() not in ("", "nan", "none", "null"):
+            round_value = str(raw_round).strip()
+
     return {
         "season_label": _current_season_label(),
         "selected_fixture": {
             "date": str(fixture_df.iloc[0]["date"]),
             "home_team": str(fixture_df.iloc[0]["home_team"]),
             "away_team": str(fixture_df.iloc[0]["away_team"]),
+            "round": round_value,
         },
         "prediction": prediction_row,
         "market_odds": market_odds,

@@ -1,43 +1,19 @@
 import { NavLink, Navigate, Route, Routes } from "react-router-dom";
-import { useEffect } from "react";
 
-import { getActiveModel } from "./lib/api";
 import { t } from "./lib/i18n";
 import { useAppStore } from "./lib/state/appStore";
 import { DatasetsPage } from "./routes/DatasetsPage";
-import { OddsPage } from "./routes/OddsPage";
+import { MatchPredictionPage } from "./routes/MatchPredictionPage";
 
 const navItems = [
-  { to: "/", labelKey: "nav.home" },
-  { to: "/odds", labelKey: "nav.odds" }
+  { to: "/", labelKey: "nav.home" }
 ] as const;
 
 function App() {
   const locale = useAppStore((state) => state.locale);
   const setLocale = useAppStore((state) => state.setLocale);
-  const modelMetadata = useAppStore((state) => state.modelMetadata);
-  const setModelMetadata = useAppStore((state) => state.setModelMetadata);
   const setToast = useAppStore((state) => state.setToast);
   const toast = useAppStore((state) => state.toast);
-
-  const bestModel =
-    modelMetadata && typeof modelMetadata["best_model"] === "string"
-      ? modelMetadata["best_model"]
-      : "-";
-  const trainedAt =
-    modelMetadata && typeof modelMetadata["trained_at"] === "string"
-      ? modelMetadata["trained_at"]
-      : "-";
-
-  useEffect(() => {
-    getActiveModel()
-      .then((response) => {
-        setModelMetadata(response.model_available ? response.metadata ?? null : null);
-      })
-      .catch(() => {
-        setModelMetadata(null);
-      });
-  }, [setModelMetadata]);
 
   return (
     <div className="app-shell">
@@ -59,37 +35,29 @@ function App() {
           >
             {locale === "es" ? "EN" : "ES"}
           </button>
-          <div className="status-card">
-            <strong>{t(locale, "header.activeModel")}</strong>
-            {modelMetadata ? (
-              <>
-                <span>{bestModel}</span>
-                <span>{trainedAt}</span>
-              </>
-            ) : (
-              <span>{t(locale, "header.noModel")}</span>
-            )}
-          </div>
         </div>
       </header>
 
-      <nav className="nav-grid">
-        {navItems.map((item) => (
-          <NavLink
-            key={item.to}
-            to={item.to}
-            end={item.to === "/"}
-            className={({ isActive }) => (isActive ? "nav-link nav-link-active" : "nav-link")}
-          >
-            {t(locale, item.labelKey)}
-          </NavLink>
-        ))}
-      </nav>
+      {navItems.length > 1 && (
+        <nav className="nav-grid">
+          {navItems.map((item) => (
+            <NavLink
+              key={item.to}
+              to={item.to}
+              end={item.to === "/"}
+              className={({ isActive }) => (isActive ? "nav-link nav-link-active" : "nav-link")}
+            >
+              {t(locale, item.labelKey)}
+            </NavLink>
+          ))}
+        </nav>
+      )}
 
       <main className="content">
         <Routes>
           <Route path="/" element={<DatasetsPage />} />
-          <Route path="/odds" element={<OddsPage />} />
+          <Route path="/partido" element={<MatchPredictionPage />} />
+          <Route path="/odds" element={<Navigate to="/" replace />} />
           <Route path="/training" element={<Navigate to="/" replace />} />
           <Route path="/predict" element={<Navigate to="/" replace />} />
           <Route path="*" element={<Navigate to="/" replace />} />

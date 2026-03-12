@@ -5,6 +5,28 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from app.services.elo import add_internal_elo_features
+
+
+ENRICHMENT_BASE_COLUMNS = [
+    "date",
+    "home_team",
+    "away_team",
+    "home_goals",
+    "away_goals",
+    "result",
+    "xg_home",
+    "xg_away",
+    "xga_home",
+    "xga_away",
+    "poss_home",
+    "poss_away",
+    "sh_home",
+    "sh_away",
+    "sot_home",
+    "sot_away",
+]
+
 
 def _safe_points(goals_for: Any, goals_against: Any) -> float:
     if pd.isna(goals_for) or pd.isna(goals_against):
@@ -189,6 +211,57 @@ def _normalize_fixture_columns(fixtures: pd.DataFrame) -> pd.DataFrame:
     return out
 
 
+def _normalize_historical_for_enrichment(
+    historical: pd.DataFrame,
+    team_map: dict[str, str],
+) -> pd.DataFrame:
+    out = historical.copy()
+    rename_map = {
+        "fthg": "home_goals",
+        "ftag": "away_goals",
+        "home_goals": "home_goals",
+        "away_goals": "away_goals",
+        "ftr": "result",
+        "result": "result",
+        "xg_home": "xg_home",
+        "xg_away": "xg_away",
+        "xga_home": "xga_home",
+        "xga_away": "xga_away",
+        "poss_home": "poss_home",
+        "poss_away": "poss_away",
+        "sh_home": "sh_home",
+        "sh_away": "sh_away",
+        "sot_home": "sot_home",
+        "sot_away": "sot_away",
+    }
+    normalized_map: dict[str, str] = {}
+    for column in out.columns:
+        key = column.strip().lower()
+        if key in rename_map:
+            normalized_map[column] = rename_map[key]
+
+    out = out.rename(columns=normalized_map)
+    out = _normalize_fixture_columns(out)
+
+    for column in ENRICHMENT_BASE_COLUMNS:
+        if column not in out.columns:
+            out[column] = np.nan
+
+    out["home_team"] = out["home_team"].map(lambda value: team_map.get(str(value), str(value)))
+    out["away_team"] = out["away_team"].map(lambda value: team_map.get(str(value), str(value)))
+
+    home_goals = pd.to_numeric(out["home_goals"], errors="coerce")
+    away_goals = pd.to_numeric(out["away_goals"], errors="coerce")
+    result_text = out["result"].astype(str).str.strip().str.upper()
+    has_result = ~result_text.isin(["", "NAN", "NONE"])
+    has_score = home_goals.notna() & away_goals.notna()
+
+    out = out[has_result | has_score].copy()
+    out = out.dropna(subset=["date", "home_team", "away_team"])
+    out = out.sort_values(["date", "home_team", "away_team"]).reset_index(drop=True)
+    return out[ENRICHMENT_BASE_COLUMNS]
+
+
 def enrich_fixtures(
     fixtures: pd.DataFrame,
     historical: pd.DataFrame,
@@ -201,10 +274,22 @@ def enrich_fixtures(
 
     base["home_team"] = base["home_team"].map(lambda value: team_map.get(str(value), str(value)))
     base["away_team"] = base["away_team"].map(lambda value: team_map.get(str(value), str(value)))
+    base = base.reset_index(drop=True).copy()
+    base["__fixture_row_id"] = range(len(base))
+    base["__is_prediction_fixture"] = True
 
-    out = add_pre_match_rolling_features(base, windows)
+    historical_base = _normalize_historical_for_enrichment(historical, team_map)
+    historical_base["__fixture_row_id"] = np.nan
+    historical_base["__is_prediction_fixture"] = False
+
+    combined = pd.concat([historical_base, base], ignore_index=True, sort=False)
+
+    out = add_pre_match_rolling_features(combined, windows)
+    out = add_internal_elo_features(out)
     out = add_basic_differentials(out)
-    return out
+    out = out[out["__is_prediction_fixture"]].copy()
+    out = out.sort_values("__fixture_row_id").reset_index(drop=True)
+    return out.drop(columns=["__fixture_row_id", "__is_prediction_fixture"])
 
 
 def add_target_label(df: pd.DataFrame) -> pd.DataFrame:

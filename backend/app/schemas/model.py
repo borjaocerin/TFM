@@ -12,7 +12,7 @@ class TrainRequest(BaseModel):
         default=None,
         description="Ruta al dataset de entrenamiento (por defecto out/laliga_enriched_model.csv)",
     )
-    use_xgb: bool = Field(default=False, description="Activa XGBoost si esta instalado")
+    use_xgb: bool = Field(default=True, description="Activa XGBoost si esta instalado")
     calibration: CalibrationMethod = Field(default="platt")
 
 

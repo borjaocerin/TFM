@@ -9,6 +9,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from sklearn.calibration import CalibratedClassifierCV
+from sklearn.ensemble import ExtraTreesClassifier, HistGradientBoostingClassifier
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.impute import SimpleImputer
 from sklearn.linear_model import LogisticRegression
@@ -121,7 +122,9 @@ def _load_training_data(dataset_path: Path) -> tuple[pd.DataFrame, pd.Series, li
     feature_columns = [
         column
         for column in df.columns
-        if column not in excluded and pd.api.types.is_numeric_dtype(df[column])
+        if column not in excluded
+        and pd.api.types.is_numeric_dtype(df[column])
+        and df[column].notna().any()
     ]
     if not feature_columns:
         raise ValueError("No hay columnas numericas para entrenar")
@@ -140,6 +143,20 @@ def _candidate_estimators(use_xgb: bool) -> dict[str, Any]:
             max_depth=10,
             min_samples_leaf=2,
             n_jobs=-1,
+        ),
+        "extra_trees": ExtraTreesClassifier(
+            n_estimators=600,
+            random_state=42,
+            min_samples_leaf=2,
+            n_jobs=-1,
+            class_weight="balanced_subsample",
+        ),
+        "hist_gradient_boosting": HistGradientBoostingClassifier(
+            max_depth=6,
+            learning_rate=0.05,
+            max_iter=400,
+            min_samples_leaf=20,
+            random_state=42,
         ),
     }
     if use_xgb and XGB_AVAILABLE:
@@ -289,7 +306,10 @@ def train_and_calibrate(request: TrainRequest) -> dict[str, Any]:
         metrics = _cross_val_metrics(X, y, pipeline)
         leaderboard.append({"model": model_name, **metrics})
 
-    leaderboard = sorted(leaderboard, key=lambda item: (item["log_loss"], -item["accuracy"]))
+    leaderboard = sorted(
+        leaderboard,
+        key=lambda item: (-item["accuracy"], item["log_loss"], -item["f1_macro"], item["brier"]),
+    )
     best_model_name = str(leaderboard[0]["model"])
     best_cv_metrics = {
         key: float(value)
