@@ -11,6 +11,30 @@ from urllib.request import Request, urlopen
 from app.core.config import settings
 
 DRAW_LABELS = {"draw", "tie", "empate", "x"}
+TEAM_MANUAL_ALIASES = {
+    "deportivo alaves": "Alaves",
+    "girona fc": "Girona",
+    "villarreal cf": "Villarreal",
+    "rcd mallorca": "Mallorca",
+    "fc barcelona": "Barcelona",
+    "barcelona fc": "Barcelona",
+    "valencia cf": "Valencia",
+    "rc celta de vigo": "Celta",
+    "club atletico de madrid": "Atletico Madrid",
+    "atletico de madrid": "Atletico Madrid",
+    "ca osasuna": "Osasuna",
+    "real madrid cf": "Real Madrid",
+    "real betis balompie": "Real Betis",
+    "betis": "Real Betis",
+    "real sociedad de futbol": "Real Sociedad",
+    "rayo vallecano de madrid": "Rayo Vallecano",
+    "levante ud": "Levante",
+    "getafe cf": "Getafe",
+    "elche cf": "Elche",
+    "sevilla fc": "Sevilla",
+    "rcd espanyol de barcelona": "Espanyol",
+    "athletic bilbao": "Athletic Club",
+}
 
 
 def load_team_map() -> dict[str, str]:
@@ -28,8 +52,24 @@ def _normalize_text(value: str) -> str:
     text = unicodedata.normalize("NFKD", value)
     text = "".join(char for char in text if not unicodedata.combining(char))
     text = text.strip().lower()
+    for token in [".", ",", ";", ":", "'", '"', "-", "_"]:
+        text = text.replace(token, " ")
     text = " ".join(text.split())
     return text
+
+
+def _team_alias_map(team_map: dict[str, str]) -> dict[str, str]:
+    normalized_map: dict[str, str] = {}
+    for source_name, canonical_name in team_map.items():
+        canonical = str(canonical_name)
+        normalized_map[_normalize_text(str(source_name))] = canonical
+        normalized_map[_normalize_text(canonical)] = canonical
+
+    for alias, canonical in TEAM_MANUAL_ALIASES.items():
+        normalized_map[_normalize_text(alias)] = canonical
+        normalized_map[_normalize_text(canonical)] = canonical
+
+    return normalized_map
 
 
 def _canonical_team(team_name: str, team_map: dict[str, str]) -> str:
@@ -38,9 +78,10 @@ def _canonical_team(team_name: str, team_map: dict[str, str]) -> str:
         return mapped
 
     normalized_team = _normalize_text(team_name)
-    for source_name, canonical_name in team_map.items():
-        if _normalize_text(str(source_name)) == normalized_team:
-            return str(canonical_name)
+    normalized_map = _team_alias_map(team_map)
+    mapped = normalized_map.get(normalized_team)
+    if mapped:
+        return mapped
     return team_name
 
 
@@ -273,15 +314,15 @@ def find_fixture_odds(
     date_key = date_iso.strip()
 
     for row in odds_payload["odds"]:
-        row_home = _normalize_text(str(row.get("home_team", "")))
-        row_away = _normalize_text(str(row.get("away_team", "")))
+        row_home = _normalize_text(_canonical_team(str(row.get("home_team", "")), team_map))
+        row_away = _normalize_text(_canonical_team(str(row.get("away_team", "")), team_map))
         row_date = str(row.get("date", "")).strip()
         if row_home == home_key and row_away == away_key and row_date == date_key:
             return row
 
     for row in odds_payload["odds"]:
-        row_home = _normalize_text(str(row.get("home_team", "")))
-        row_away = _normalize_text(str(row.get("away_team", "")))
+        row_home = _normalize_text(_canonical_team(str(row.get("home_team", "")), team_map))
+        row_away = _normalize_text(_canonical_team(str(row.get("away_team", "")), team_map))
         if row_home == home_key and row_away == away_key:
             return row
 

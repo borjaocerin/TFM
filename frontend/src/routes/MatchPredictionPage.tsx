@@ -3,6 +3,10 @@ import { Link, useSearchParams } from "react-router-dom";
 
 import { type PredictUpcomingResponse, predictUpcomingFixture } from "../lib/api";
 import {
+  buildMarketComparison,
+  buildRequiredOddsGuide
+} from "../lib/odds";
+import {
   formatRoundLabel,
   getTeamImgSources,
   loadNextTeamLogo,
@@ -117,51 +121,19 @@ export function MatchPredictionPage() {
   const oddsAvgA = Number(predictionRecord["odds_avg_a"] ?? Number.NaN);
 
   const marketComparison = useMemo(() => {
-    const outcomes = [
-      { key: "H", label: "1 · Local", modelProbability: pH, odds: oddsAvgH },
-      { key: "D", label: "X · Empate", modelProbability: pD, odds: oddsAvgD },
-      { key: "A", label: "2 · Visitante", modelProbability: pA, odds: oddsAvgA }
-    ];
-
-    if (
-      outcomes.some(
-        (outcome) => !Number.isFinite(outcome.modelProbability) || !Number.isFinite(outcome.odds)
-      )
-    ) {
-      return null;
-    }
-
-    const normalizedTotal = outcomes.reduce(
-      (total, outcome) => total + 1 / outcome.odds,
-      0
+    return buildMarketComparison(
+      { home: pH, draw: pD, away: pA },
+      { home: oddsAvgH, draw: oddsAvgD, away: oddsAvgA },
+      VALUE_BET_THRESHOLD
     );
-
-    if (!Number.isFinite(normalizedTotal) || normalizedTotal <= 0) {
-      return null;
-    }
-
-    const rows = outcomes.map((outcome) => {
-      const marketProbability = (1 / outcome.odds) / normalizedTotal;
-      const expectedValue = outcome.modelProbability * outcome.odds - 1;
-
-      return {
-        ...outcome,
-        marketProbability,
-        expectedValue,
-        isValueBet: expectedValue > VALUE_BET_THRESHOLD
-      };
-    });
-
-    const bestOption = rows.reduce((best, current) =>
-      current.expectedValue > best.expectedValue ? current : best
-    );
-
-    return {
-      rows,
-      bestOption,
-      hasValueBet: bestOption.expectedValue > VALUE_BET_THRESHOLD
-    };
   }, [oddsAvgA, oddsAvgD, oddsAvgH, pA, pD, pH]);
+
+  const requiredOddsGuide = useMemo(() => {
+    return buildRequiredOddsGuide(
+      { home: pH, draw: pD, away: pA },
+      VALUE_BET_THRESHOLD
+    );
+  }, [pA, pD, pH]);
 
   return (
     <>
@@ -271,9 +243,39 @@ export function MatchPredictionPage() {
           {!marketComparison && (
             <div className="panel">
               <h3>Comparativa modelo vs mercado</h3>
-              <p className="small-note">
-                No hay cuotas disponibles para este partido, así que no se puede comparar el modelo con el mercado.
-              </p>
+              {requiredOddsGuide ? (
+                <>
+                  <p className="small-note">
+                    No hay cuota live disponible para este partido. Si la cuota que ves fuera supera estos niveles,
+                    la apuesta pasaria a ser rentable segun el modelo.
+                  </p>
+                  <div className="metric-grid metric-grid-three">
+                    {requiredOddsGuide.rows.map((row) => (
+                      <div className="metric-card" key={row.key}>
+                        <span>{row.label}</span>
+                        <strong>EV &gt; 0: {formatDecimalOdds(row.breakEvenOdds)}</strong>
+                        <div className="metric-detail-list">
+                          <span>Modelo: {formatProbability(row.modelProbability)}</span>
+                          <span>
+                            Value bet &gt; {formatSignedPercentage(VALUE_BET_THRESHOLD)}: {" "}
+                            {formatDecimalOdds(row.thresholdOdds)}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="comparison-summary">
+                    Referencia mas asequible: <strong>{requiredOddsGuide.bestOption.label}</strong> a partir de {" "}
+                    <strong>{formatDecimalOdds(requiredOddsGuide.bestOption.thresholdOdds)}</strong> para superar el
+                    umbral de {" "}
+                    <strong>{formatSignedPercentage(VALUE_BET_THRESHOLD)}</strong>.
+                  </p>
+                </>
+              ) : (
+                <p className="small-note">
+                  No hay cuotas disponibles para este partido, así que no se puede comparar el modelo con el mercado.
+                </p>
+              )}
             </div>
           )}
         </>
