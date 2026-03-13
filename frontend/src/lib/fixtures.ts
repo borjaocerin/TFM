@@ -14,11 +14,21 @@ export const LOGOS_LALIGA_ALIASES: Record<string, string> = {
 
 const ROOT_LOGO_ALIASES: Record<string, string> = {
   athletic_club: "athletic",
+  athletic_bilbao: "athletic",
+  club_atletico_de_madrid: "atletico_madrid",
+  deportivo_alaves: "alaves",
   elche_cf: "elche",
   espanol: "espanyol",
   espanyol: "espanyol",
   levante_ud: "levante",
-  rcd_espanyol_de_barcelona: "espanyol"
+  oviedo: "real_oviedo",
+  rcd_espanyol_de_barcelona: "espanyol",
+  rc_celta_de_vigo: "celta",
+  real_betis: "betis",
+  real_betis_balompie: "betis",
+  real_oviedo: "real_oviedo",
+  ca_osasuna: "osasuna",
+  celta_vigo: "celta"
 };
 
 function normalizeTeamToken(team: string, separator: "_" | "-") {

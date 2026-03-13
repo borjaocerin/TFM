@@ -21,6 +21,17 @@ from app.services.features import enrich_fixtures
 
 DEFAULT_WINDOWS: tuple[int, ...] = (5, 10)
 
+ROUND_NAME_ALIASES: dict[str, tuple[str, ...]] = {
+    "real betis": ("betis",),
+    "betis": ("real betis",),
+    "celta vigo": ("celta",),
+    "celta": ("celta vigo",),
+    "real oviedo": ("oviedo",),
+    "oviedo": ("real oviedo",),
+    "ca osasuna": ("osasuna",),
+    "osasuna": ("ca osasuna",),
+}
+
 
 def _resolve_path(path_value: str | None) -> Path | None:
     if path_value is None:
@@ -633,6 +644,110 @@ def _load_laliga_team_pool(team_map: dict[str, str]) -> set[str]:
     return set()
 
 
+def _round_match_keys(team_name: Any) -> set[str]:
+    normalized = _normalize_text_basic(team_name)
+    if normalized == "":
+        return set()
+
+    keys = {normalized}
+    for alias in ROUND_NAME_ALIASES.get(normalized, ()):  # pragma: no branch
+        alias_normalized = _normalize_text_basic(alias)
+        if alias_normalized:
+            keys.add(alias_normalized)
+    return keys
+
+
+def _teams_match_for_round(left_team: Any, right_team: Any) -> bool:
+    left_keys = _round_match_keys(left_team)
+    right_keys = _round_match_keys(right_team)
+    if not left_keys or not right_keys:
+        return False
+
+    if left_keys.intersection(right_keys):
+        return True
+
+    for left_key in left_keys:
+        for right_key in right_keys:
+            if min(len(left_key), len(right_key)) < 5:
+                continue
+            if left_key in right_key or right_key in left_key:
+                return True
+
+    return False
+
+
+def _build_manual_round_index(
+    team_map: dict[str, str],
+) -> tuple[dict[str, str], dict[str, list[tuple[str, str, str]]]]:
+    json_path = _default_source_paths()["manual_fixtures_json"]
+    if not json_path.exists():
+        return {}, {}
+
+    payload: Any
+    try:
+        payload = json.loads(json_path.read_text(encoding="utf-8"))
+    except Exception:
+        try:
+            payload = json.loads(json_path.read_text(encoding="latin-1"))
+        except Exception:
+            return {}, {}
+
+    manual_rows = _extract_rows_from_manual_json(payload)
+    canonical = _canonicalize_api_rows(manual_rows, team_map)
+    if canonical.empty:
+        return {}, {}
+
+    exact_round_by_fixture: dict[str, str] = {}
+    candidate_rounds_by_date: dict[str, list[tuple[str, str, str]]] = {}
+
+    for row in canonical.itertuples(index=False):
+        round_value = str(getattr(row, "round", "")).strip()
+        if round_value == "" or round_value.lower() in {"none", "nan", "null", "undefined"}:
+            continue
+
+        date_value = str(row.date)
+        home_team = str(row.home_team)
+        away_team = str(row.away_team)
+
+        fixture_key = _fixture_id(date_value, home_team, away_team)
+        exact_round_by_fixture[fixture_key] = round_value
+        candidate_rounds_by_date.setdefault(date_value, []).append((home_team, away_team, round_value))
+
+    return exact_round_by_fixture, candidate_rounds_by_date
+
+
+def _attach_rounds_from_manual_source(upcoming: pd.DataFrame, team_map: dict[str, str]) -> pd.DataFrame:
+    if upcoming.empty:
+        return upcoming
+
+    exact_round_by_fixture, candidate_rounds_by_date = _build_manual_round_index(team_map)
+    if not exact_round_by_fixture and not candidate_rounds_by_date:
+        return upcoming
+
+    enriched = upcoming.copy()
+    rounds: list[str] = []
+
+    for row in enriched.itertuples(index=False):
+        date_value = str(row.date)
+        home_team = str(row.home_team)
+        away_team = str(row.away_team)
+        fixture_key = _fixture_id(date_value, home_team, away_team)
+
+        round_value = exact_round_by_fixture.get(fixture_key, "")
+        if round_value == "":
+            for candidate_home, candidate_away, candidate_round in candidate_rounds_by_date.get(date_value, []):
+                if _teams_match_for_round(home_team, candidate_home) and _teams_match_for_round(
+                    away_team, candidate_away
+                ):
+                    round_value = candidate_round
+                    break
+
+        rounds.append(round_value)
+
+    enriched["round"] = rounds
+    return enriched
+
+
 def _filter_to_laliga_teams(fixtures: pd.DataFrame, team_map: dict[str, str]) -> pd.DataFrame:
     team_pool = _load_laliga_team_pool(team_map)
     if not team_pool:
@@ -676,6 +791,8 @@ def _load_upcoming_from_odds_api(team_map: dict[str, str], season_label: str) ->
     upcoming = _filter_current_season_upcoming(canonical)
     if upcoming.empty:
         return None
+
+    upcoming = _attach_rounds_from_manual_source(upcoming, team_map)
 
     source_path = str(odds_payload.get("source_path", "api:the-odds-api"))
     return _build_fixtures_response(upcoming, season_label, source_path or "api:the-odds-api")
