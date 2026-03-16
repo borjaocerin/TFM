@@ -9,12 +9,14 @@ type Props = {
 
 export function TrainingForm({ onSubmit, loading }: Props) {
   const [useXgb, setUseXgb] = useState(false);
+  const [useCatBoost, setUseCatBoost] = useState(true);
   const [calibration, setCalibration] = useState<"platt" | "isotonic">("platt");
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     await onSubmit({
       use_xgb: useXgb,
+      use_catboost: useCatBoost,
       calibration
     });
   };
@@ -42,6 +44,17 @@ export function TrainingForm({ onSubmit, loading }: Props) {
           <select
             value={useXgb ? "yes" : "no"}
             onChange={(event) => setUseXgb(event.target.value === "yes")}
+          >
+            <option value="no">No</option>
+            <option value="yes">Si (si esta instalado)</option>
+          </select>
+        </div>
+
+        <div className="field">
+          <label>Modelo CatBoost</label>
+          <select
+            value={useCatBoost ? "yes" : "no"}
+            onChange={(event) => setUseCatBoost(event.target.value === "yes")}
           >
             <option value="no">No</option>
             <option value="yes">Si (si esta instalado)</option>

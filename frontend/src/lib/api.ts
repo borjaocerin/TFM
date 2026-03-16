@@ -43,6 +43,7 @@ export type FixturesFeaturesResponse = {
 export type TrainPayload = {
   dataset_path?: string;
   use_xgb: boolean;
+  use_catboost?: boolean;
   calibration: "platt" | "isotonic";
 };
 

@@ -863,6 +863,8 @@ def _load_upcoming_from_api(team_map: dict[str, str], season_label: str) -> dict
     if upcoming.empty:
         return None
 
+    upcoming = _attach_rounds_from_manual_source(upcoming, team_map)
+
     return _build_fixtures_response(upcoming, season_label, f"api:{api_url}")
 
 
@@ -880,6 +882,8 @@ def _load_upcoming_from_csv(team_map: dict[str, str], season_label: str) -> dict
 
         if upcoming.empty:
             continue
+
+        upcoming = _attach_rounds_from_manual_source(upcoming, team_map)
 
         return _build_fixtures_response(upcoming, season_label, str(candidate_path))
 
@@ -917,14 +921,6 @@ def list_upcoming_fixture_options() -> dict[str, Any]:
     season_label = _current_season_label()
     api_url = _effective_fixtures_api_url()
 
-    odds_api_error: str | None = None
-    try:
-        from_odds_api = _load_upcoming_from_odds_api(team_map, season_label)
-        if from_odds_api is not None:
-            return from_odds_api
-    except ValueError as exc:
-        odds_api_error = str(exc)
-
     from_manual_json = _load_upcoming_from_manual_json(team_map, season_label)
     if from_manual_json is not None:
         return from_manual_json
@@ -938,16 +934,30 @@ def list_upcoming_fixture_options() -> dict[str, Any]:
         if from_csv is not None:
             return from_csv
 
+    odds_api_error: str | None = None
+    try:
+        from_odds_api = _load_upcoming_from_odds_api(team_map, season_label)
+        if from_odds_api is not None:
+            from_odds_api["error"] = (
+                "No se encontraron jornadas completas en fixtures; mostrando solo partidos con cuota."
+            )
+            return from_odds_api
+    except ValueError as exc:
+        odds_api_error = str(exc)
+
     # Demo fallback: last historical matches so the UI is never completely blank
     from_demo = _load_demo_from_csv(team_map, season_label)
     if from_demo is not None:
         from_demo["error"] = (
             odds_api_error
-            or "No hay partidos futuros en la API. Mostrando datos historicos de demo."
+            or "No hay partidos futuros en fuentes de fixtures. Mostrando datos historicos de demo."
         )
         return from_demo
 
-    error_msg = odds_api_error or "No se encontraron partidos proximos. Comprueba ODDS_API_KEY."
+    error_msg = (
+        odds_api_error
+        or "No se encontraron partidos proximos. Comprueba las fuentes de fixtures y ODDS_API_KEY."
+    )
     return {
         "season_label": season_label,
         "source_path": f"api:{api_url}" if api_url else "",

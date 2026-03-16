@@ -1,6 +1,6 @@
 MODEL METRICS REPORT
 ====================
-trained_at_utc: 2026-03-12T09:13:00.718824+00:00
+trained_at_utc: 2026-03-16T09:05:53.313309+00:00
 dataset_path: /app/data/out/laliga_enriched_model.csv
 best_model: logreg
 
@@ -21,6 +21,6 @@ fit_accuracy: 0.514398
 fit_f1_macro: 0.339346
  - logreg: log_loss=1.015463, accuracy=0.511443, brier=0.605309, ece=0.024577, f1_macro=0.368074
  - random_forest: log_loss=1.014475, accuracy=0.511194, brier=0.605737, ece=0.020042, f1_macro=0.372117
+ - catboost: log_loss=1.025608, accuracy=0.498507, brier=0.612430, ece=0.033320, f1_macro=0.383091
  - extra_trees: log_loss=1.027187, accuracy=0.498259, brier=0.614991, ece=0.052963, f1_macro=0.414365
- - xgb: log_loss=1.149486, accuracy=0.461692, brier=0.674627, ece=0.114936, f1_macro=0.382077
  - hist_gradient_boosting: log_loss=1.322825, accuracy=0.448507, brier=0.731380, ece=0.158220, f1_macro=0.384096

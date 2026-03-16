@@ -33,6 +33,13 @@ try:
 except Exception:  # pragma: no cover - optional dependency
     XGB_AVAILABLE = False
 
+try:
+    from catboost import CatBoostClassifier
+
+    CATBOOST_AVAILABLE = True
+except Exception:  # pragma: no cover - optional dependency
+    CATBOOST_AVAILABLE = False
+
 
 LEAKAGE_COLUMNS = {
     "xg_home",
@@ -134,7 +141,7 @@ def _load_training_data(dataset_path: Path) -> tuple[pd.DataFrame, pd.Series, li
     return X, y, feature_columns
 
 
-def _candidate_estimators(use_xgb: bool) -> dict[str, Any]:
+def _candidate_estimators(use_xgb: bool, use_catboost: bool) -> dict[str, Any]:
     estimators: dict[str, Any] = {
         "logreg": LogisticRegression(max_iter=2000, multi_class="multinomial"),
         "random_forest": RandomForestClassifier(
@@ -171,6 +178,18 @@ def _candidate_estimators(use_xgb: bool) -> dict[str, Any]:
             eval_metric="mlogloss",
             random_state=42,
             n_jobs=4,
+        )
+    if use_catboost and CATBOOST_AVAILABLE:
+        estimators["catboost"] = CatBoostClassifier(
+            iterations=700,
+            learning_rate=0.03,
+            depth=6,
+            loss_function="MultiClass",
+            eval_metric="MultiClass",
+            random_seed=42,
+            verbose=False,
+            allow_writing_files=False,
+            thread_count=4,
         )
     return estimators
 
@@ -298,7 +317,7 @@ def train_and_calibrate(request: TrainRequest) -> dict[str, Any]:
     dataset_path = _resolve_dataset_path(request.dataset_path)
     X, y, feature_columns = _load_training_data(dataset_path)
 
-    estimators = _candidate_estimators(request.use_xgb)
+    estimators = _candidate_estimators(request.use_xgb, request.use_catboost)
     leaderboard: list[dict[str, Any]] = []
 
     for model_name, estimator in estimators.items():
