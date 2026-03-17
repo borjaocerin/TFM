@@ -106,4 +106,7 @@ class UpcomingOddsResponse(BaseModel):
     rows: int
     requests_remaining: str
     requests_used: str
+    output_csv: str | None = None
+    history_csv: str | None = None
+    fetched_at_utc: str | None = None
     odds: list[UpcomingOddsOption]

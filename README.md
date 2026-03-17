@@ -319,7 +319,8 @@ Efecto:
 1. Calcula probabilidades implicitas del mercado ajustando margen.
 2. Compara `log_loss` y `brier` (si existe `target`).
 3. Marca value bets por `EV = p_model * odd - 1`.
-4. Exporta `data/out/predictions_with_odds.csv`.
+4. Si existe `target`, calcula rentabilidad real (`value_bets_profit`, `value_bets_roi`, `value_bets_hit_rate`).
+5. Exporta `data/out/predictions_with_odds.csv`.
 
 ### 8.8 Cuotas live (The Odds API)
 
@@ -330,6 +331,7 @@ Efecto:
 1. Consulta The Odds API para partidos upcoming de LaLiga.
 2. Devuelve cuotas `1/X/2` en formato decimal (`odds_avg_*` y `odds_best_*`).
 3. Expone cabeceras de cuota consumida: `requests_remaining` y `requests_used`.
+4. Guarda snapshot actual en `data/out/laliga_upcoming_odds.csv` y acumula historico en `data/out/laliga_odds_history.csv`.
 
 ## 9. Frontend (demo)
 

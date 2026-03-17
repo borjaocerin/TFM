@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import csv
 import json
 import unicodedata
-from datetime import datetime
+from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
@@ -11,6 +13,22 @@ from urllib.request import Request, urlopen
 from app.core.config import settings
 
 DRAW_LABELS = {"draw", "tie", "empate", "x"}
+ODDS_EXPORT_COLUMNS = [
+    "fetched_at_utc",
+    "fixture_id",
+    "event_id",
+    "date",
+    "home_team",
+    "away_team",
+    "source",
+    "bookmakers",
+    "odds_avg_h",
+    "odds_avg_d",
+    "odds_avg_a",
+    "odds_best_h",
+    "odds_best_d",
+    "odds_best_a",
+]
 TEAM_MANUAL_ALIASES = {
     "deportivo alaves": "Alaves",
     "girona fc": "Girona",
@@ -127,6 +145,40 @@ def _effective_odds_api_url() -> str:
 
     sport_key = (settings.odds_api_sport_key or "soccer_spain_la_liga").strip()
     return f"https://api.the-odds-api.com/v4/sports/{sport_key}/odds"
+
+
+def _write_odds_csv(path: Path, rows: list[dict[str, Any]], append: bool) -> None:
+    write_header = (not append) or (not path.exists()) or path.stat().st_size == 0
+    mode = "a" if append else "w"
+    with path.open(mode=mode, newline="", encoding="utf-8") as handler:
+        writer = csv.DictWriter(handler, fieldnames=ODDS_EXPORT_COLUMNS)
+        if write_header:
+            writer.writeheader()
+        for row in rows:
+            writer.writerow({column: row.get(column) for column in ODDS_EXPORT_COLUMNS})
+
+
+def persist_laliga_odds_snapshot(odds_rows: list[dict[str, Any]]) -> dict[str, str]:
+    settings.output_dir.mkdir(parents=True, exist_ok=True)
+
+    latest_csv = settings.output_dir / "laliga_upcoming_odds.csv"
+    history_csv = settings.output_dir / "laliga_odds_history.csv"
+    fetched_at = datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+    rows_for_export: list[dict[str, Any]] = []
+    for row in odds_rows:
+        if not isinstance(row, dict):
+            continue
+        rows_for_export.append({"fetched_at_utc": fetched_at, **row})
+
+    _write_odds_csv(latest_csv, rows_for_export, append=False)
+    _write_odds_csv(history_csv, rows_for_export, append=True)
+
+    return {
+        "output_csv": str(latest_csv),
+        "history_csv": str(history_csv),
+        "fetched_at_utc": fetched_at,
+    }
 
 
 def _safe_float(value: Any) -> float | None:
@@ -291,6 +343,8 @@ def fetch_upcoming_laliga_odds(team_map: dict[str, str], limit: int = 100) -> di
     if limit > 0:
         rows = rows[:limit]
 
+    snapshot_info = persist_laliga_odds_snapshot(rows)
+
     return {
         "sport_key": settings.odds_api_sport_key,
         "source_path": safe_source_path,
@@ -298,6 +352,9 @@ def fetch_upcoming_laliga_odds(team_map: dict[str, str], limit: int = 100) -> di
         "odds": rows,
         "requests_remaining": quota_remaining,
         "requests_used": quota_used,
+        "output_csv": snapshot_info["output_csv"],
+        "history_csv": snapshot_info["history_csv"],
+        "fetched_at_utc": snapshot_info["fetched_at_utc"],
     }
 
 

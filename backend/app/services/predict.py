@@ -1174,6 +1174,7 @@ def compare_odds(request: OddsCompareRequest) -> dict[str, Any]:
         raise ValueError(f"Faltan columnas para comparar cuotas: {missing}")
 
     metrics, compared = compare_market_vs_model(df, request.odds_kind, request.value_threshold)
+    settings.output_dir.mkdir(parents=True, exist_ok=True)
     output_csv = settings.output_dir / "predictions_with_odds.csv"
     compared.to_csv(output_csv, index=False)
 
@@ -1186,9 +1187,14 @@ def compare_odds(request: OddsCompareRequest) -> dict[str, Any]:
             "away_team",
             "best_ev_pick",
             "best_ev",
+            "best_ev_odds",
             "ev_H",
             "ev_D",
             "ev_A",
+            "target",
+            "target_label",
+            "bet_won",
+            "bet_profit",
         ]
         if column in value_bets.columns
     ]

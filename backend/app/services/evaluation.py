@@ -7,6 +7,21 @@ import pandas as pd
 from sklearn.calibration import calibration_curve
 from sklearn.metrics import accuracy_score, f1_score, log_loss
 
+TARGET_LABELS = {0: "H", 1: "D", 2: "A"}
+TARGET_VALUE_MAP = {
+    "H": 0,
+    "HOME": 0,
+    "LOCAL": 0,
+    "D": 1,
+    "DRAW": 1,
+    "X": 1,
+    "EMPATE": 1,
+    "A": 2,
+    "AWAY": 2,
+    "VISITOR": 2,
+    "VISITANTE": 2,
+}
+
 
 def multiclass_brier_score(y_true: np.ndarray, y_prob: np.ndarray, n_classes: int = 3) -> float:
     one_hot = np.eye(n_classes)[y_true]
@@ -61,6 +76,19 @@ def reliability_points(y_true: np.ndarray, y_prob: np.ndarray, n_bins: int = 10)
     return output
 
 
+def _target_to_int(value: Any) -> int | None:
+    if value is None:
+        return None
+    try:
+        numeric = int(float(value))
+        return numeric if numeric in TARGET_LABELS else None
+    except Exception:
+        text = str(value).strip().upper()
+        if text == "":
+            return None
+        return TARGET_VALUE_MAP.get(text)
+
+
 def market_implied_probabilities(df: pd.DataFrame, odds_kind: str) -> pd.DataFrame:
     output = df.copy()
     home_col = f"{odds_kind}_h"
@@ -101,20 +129,79 @@ def compare_market_vs_model(
     df["best_ev"] = best_ev
     df["value_bet"] = df["best_ev"].fillna(-999.0) > value_threshold
 
+    pick_odds = np.select(
+        [df["best_ev_pick"] == "H", df["best_ev_pick"] == "D", df["best_ev_pick"] == "A"],
+        [
+            pd.to_numeric(df[f"{odds_kind}_h"], errors="coerce"),
+            pd.to_numeric(df[f"{odds_kind}_d"], errors="coerce"),
+            pd.to_numeric(df[f"{odds_kind}_a"], errors="coerce"),
+        ],
+        default=np.nan,
+    )
+    df["best_ev_odds"] = pick_odds
+
+    total_value_bets = float(df["value_bet"].sum())
+
     metrics: dict[str, float | None] = {
         "model_log_loss": None,
         "market_log_loss": None,
         "model_brier": None,
         "market_brier": None,
+        "value_bets_total": total_value_bets,
+        "value_bets_settled": None,
+        "value_bets_won": None,
+        "value_bets_profit": None,
+        "value_bets_roi": None,
+        "value_bets_hit_rate": None,
+        "value_bets_avg_odds": None,
     }
+
+    df["target_int"] = np.nan
+    df["target_label"] = pd.Series([None] * len(df), dtype="object")
+    df["bet_won"] = np.nan
+    df["bet_profit"] = np.nan
+
     if "target" in df.columns:
-        valid = df.dropna(subset=["target", "p_H", "p_D", "p_A", "mkt_p_H", "mkt_p_D", "mkt_p_A"])
+        df["target_int"] = df["target"].map(_target_to_int)
+        df["target_label"] = df["target_int"].map(TARGET_LABELS)
+
+        valid = df.dropna(
+            subset=["target_int", "p_H", "p_D", "p_A", "mkt_p_H", "mkt_p_D", "mkt_p_A"]
+        )
         if not valid.empty:
-            y_true = valid["target"].astype(int).to_numpy()
+            y_true = valid["target_int"].astype(int).to_numpy()
             model_prob = valid[["p_H", "p_D", "p_A"]].astype(float).to_numpy()
             market_prob = valid[["mkt_p_H", "mkt_p_D", "mkt_p_A"]].astype(float).to_numpy()
             metrics["model_log_loss"] = float(log_loss(y_true, model_prob, labels=[0, 1, 2]))
             metrics["market_log_loss"] = float(log_loss(y_true, market_prob, labels=[0, 1, 2]))
             metrics["model_brier"] = multiclass_brier_score(y_true, model_prob)
             metrics["market_brier"] = multiclass_brier_score(y_true, market_prob)
+
+        settled_mask = (
+            df["value_bet"]
+            & df["target_label"].notna()
+            & pd.to_numeric(df["best_ev_odds"], errors="coerce").notna()
+        )
+        df.loc[settled_mask, "bet_won"] = (df.loc[settled_mask, "best_ev_pick"] == df.loc[settled_mask, "target_label"])
+
+        won_mask = settled_mask & df["bet_won"].fillna(False).astype(bool)
+        lost_mask = settled_mask & (~df["bet_won"].fillna(False).astype(bool))
+
+        df.loc[won_mask, "bet_profit"] = pd.to_numeric(df.loc[won_mask, "best_ev_odds"], errors="coerce") - 1.0
+        df.loc[lost_mask, "bet_profit"] = -1.0
+
+        settled = df.loc[settled_mask].copy()
+        if not settled.empty:
+            settled_count = float(len(settled))
+            won_count = float(settled["bet_won"].fillna(False).astype(bool).sum())
+            total_profit = float(pd.to_numeric(settled["bet_profit"], errors="coerce").sum())
+            metrics["value_bets_settled"] = settled_count
+            metrics["value_bets_won"] = won_count
+            metrics["value_bets_profit"] = total_profit
+            metrics["value_bets_roi"] = total_profit / settled_count if settled_count > 0 else None
+            metrics["value_bets_hit_rate"] = won_count / settled_count if settled_count > 0 else None
+            metrics["value_bets_avg_odds"] = float(
+                pd.to_numeric(settled["best_ev_odds"], errors="coerce").mean()
+            )
+
     return metrics, df
