@@ -112,6 +112,11 @@ Columnas recomendadas para mejor rendimiento:
 5. `sh_home`, `sh_away`
 6. `sot_home`, `sot_away`
 
+Nota de actualizacion automatica:
+
+- En `POST /api/v1/datasets/ingest`, si existe `data/fixtures/proximosPartidos.json`, se agregan al historico los partidos ya jugados (incluyendo fechas de 2026) para mejorar el entrenamiento.
+- Solo se incorporan encuentros con marcador final (`score.ft`) y fecha no futura para evitar leakage.
+
 ### 5.2 Football-data por temporada
 
 Ruta recomendada: `data/football-data/*.csv`

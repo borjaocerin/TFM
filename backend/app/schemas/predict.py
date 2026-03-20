@@ -37,6 +37,15 @@ class UpcomingFixtureOption(BaseModel):
     away_team: str
     label: str
     round: str | None = None
+    p_H: float | None = None
+    p_D: float | None = None
+    p_A: float | None = None
+    odds_avg_h: float | None = None
+    odds_avg_d: float | None = None
+    odds_avg_a: float | None = None
+    best_ev: float | None = None
+    best_ev_pick: str | None = None
+    value_bet: bool | None = None
 
 
 class UpcomingFixturesResponse(BaseModel):

@@ -967,6 +967,258 @@ def list_upcoming_fixture_options() -> dict[str, Any]:
     }
 
 
+def _find_fixture_odds_in_rows(
+    date_iso: str,
+    home_team: str,
+    away_team: str,
+    odds_rows: list[dict[str, Any]],
+    team_map: dict[str, str],
+) -> dict[str, Any] | None:
+    if not odds_rows:
+        return None
+
+    normalized_home = _normalize_text_basic(_canonical_team_name(home_team, team_map))
+    normalized_away = _normalize_text_basic(_canonical_team_name(away_team, team_map))
+    date_key = str(date_iso).strip()
+
+    best_row: dict[str, Any] | None = None
+    best_score = -1
+
+    for row in odds_rows:
+        row_home_raw = str(row.get("home_team", "")).strip()
+        row_away_raw = str(row.get("away_team", "")).strip()
+        row_date = str(row.get("date", "")).strip()
+
+        row_home = _normalize_text_basic(_canonical_team_name(row_home_raw, team_map))
+        row_away = _normalize_text_basic(_canonical_team_name(row_away_raw, team_map))
+
+        if row_home == "" or row_away == "":
+            continue
+
+        exact_match = row_home == normalized_home and row_away == normalized_away
+        fuzzy_match = _teams_match_for_round(row_home_raw, home_team) and _teams_match_for_round(
+            row_away_raw, away_team
+        )
+
+        if exact_match and row_date == date_key:
+            return row
+
+        if exact_match:
+            score = 3
+        elif fuzzy_match and row_date == date_key:
+            score = 2
+        elif fuzzy_match:
+            score = 1
+        else:
+            continue
+
+        if score > best_score:
+            best_score = score
+            best_row = row
+
+    return best_row
+
+
+def _to_float_or_none(value: Any) -> float | None:
+    try:
+        parsed = float(value)
+    except Exception:
+        return None
+    if not np.isfinite(parsed):
+        return None
+    return parsed
+
+
+def list_upcoming_fixture_options_with_value(value_threshold: float = 0.02) -> dict[str, Any]:
+    response = list_upcoming_fixture_options()
+
+    raw_fixtures = response.get("fixtures")
+    if not isinstance(raw_fixtures, list) or not raw_fixtures:
+        return response
+
+    fixtures = [dict(item) for item in raw_fixtures if isinstance(item, dict)]
+    if not fixtures:
+        response["fixtures"] = []
+        response["rows"] = 0
+        return response
+
+    team_map = _load_team_map()
+
+    fixture_rows: list[dict[str, str]] = []
+    for fixture in fixtures:
+        date_value = str(fixture.get("date", "")).strip()
+        home_team = _canonical_team_name(fixture.get("home_team", ""), team_map)
+        away_team = _canonical_team_name(fixture.get("away_team", ""), team_map)
+        round_value = str(fixture.get("round", "") or "").strip()
+
+        if date_value == "" or home_team == "" or away_team == "":
+            continue
+
+        fixture["date"] = date_value
+        fixture["home_team"] = home_team
+        fixture["away_team"] = away_team
+        fixture["fixture_id"] = str(
+            fixture.get("fixture_id") or _fixture_id(date_value, home_team, away_team)
+        )
+        fixture["round"] = round_value
+
+        fixture_rows.append(
+            {
+                "fixture_id": fixture["fixture_id"],
+                "date": date_value,
+                "home_team": home_team,
+                "away_team": away_team,
+                "round": round_value,
+            }
+        )
+
+    if not fixture_rows:
+        for fixture in fixtures:
+            fixture["p_H"] = None
+            fixture["p_D"] = None
+            fixture["p_A"] = None
+            fixture["odds_avg_h"] = None
+            fixture["odds_avg_d"] = None
+            fixture["odds_avg_a"] = None
+            fixture["best_ev"] = None
+            fixture["best_ev_pick"] = None
+            fixture["value_bet"] = None
+        response["fixtures"] = fixtures
+        response["rows"] = int(len(fixtures))
+        return response
+
+    try:
+        historical_path = _ensure_default_enriched_historical()
+        historical_df = pd.read_csv(historical_path)
+        fixture_df = pd.DataFrame(fixture_rows)
+
+        enriched = enrich_fixtures(fixture_df, historical_df, DEFAULT_WINDOWS, team_map)
+        elo_path = _default_source_paths()["elo_csv"]
+        if elo_path.exists():
+            enriched = enrich_with_elo(enriched, elo_path, team_map)
+
+        prediction_payload = predict_matches(PredictRequest(fixtures=enriched.to_dict(orient="records")))
+        predictions_df = pd.DataFrame(prediction_payload.get("predictions", []))
+
+        odds_rows: list[dict[str, Any]] = []
+        try:
+            odds_payload = fetch_upcoming_laliga_odds(team_map=team_map, limit=400)
+            payload_rows = odds_payload.get("odds")
+            if isinstance(payload_rows, list):
+                odds_rows = [row for row in payload_rows if isinstance(row, dict)]
+        except Exception:
+            odds_rows = []
+
+        prediction_by_key: dict[str, dict[str, Any]] = {}
+        if not predictions_df.empty:
+            for row in predictions_df.to_dict(orient="records"):
+                key = _fixture_id(
+                    str(row.get("date", "")),
+                    str(row.get("home_team", "")),
+                    str(row.get("away_team", "")),
+                )
+                prediction_by_key[key] = row
+
+        compare_rows: list[dict[str, Any]] = []
+        for fixture in fixture_rows:
+            key = _fixture_id(fixture["date"], fixture["home_team"], fixture["away_team"])
+            prediction_row = prediction_by_key.get(key)
+            if not prediction_row:
+                continue
+
+            odds_row = _find_fixture_odds_in_rows(
+                date_iso=fixture["date"],
+                home_team=fixture["home_team"],
+                away_team=fixture["away_team"],
+                odds_rows=odds_rows,
+                team_map=team_map,
+            )
+
+            compare_rows.append(
+                {
+                    "fixture_id": fixture["fixture_id"],
+                    "p_H": _to_float_or_none(prediction_row.get("p_H")),
+                    "p_D": _to_float_or_none(prediction_row.get("p_D")),
+                    "p_A": _to_float_or_none(prediction_row.get("p_A")),
+                    "odds_avg_h": _to_float_or_none((odds_row or {}).get("odds_avg_h")),
+                    "odds_avg_d": _to_float_or_none((odds_row or {}).get("odds_avg_d")),
+                    "odds_avg_a": _to_float_or_none((odds_row or {}).get("odds_avg_a")),
+                }
+            )
+
+        compared_by_fixture_id: dict[str, dict[str, Any]] = {}
+        if compare_rows:
+            _, compared = compare_market_vs_model(pd.DataFrame(compare_rows), "odds_avg", value_threshold)
+            for row in compared.to_dict(orient="records"):
+                fixture_id = str(row.get("fixture_id", "")).strip()
+                if fixture_id:
+                    compared_by_fixture_id[fixture_id] = row
+
+        for fixture in fixtures:
+            fixture_id = str(fixture.get("fixture_id", "")).strip()
+            compared_row = compared_by_fixture_id.get(fixture_id)
+
+            if not compared_row:
+                fixture["p_H"] = None
+                fixture["p_D"] = None
+                fixture["p_A"] = None
+                fixture["odds_avg_h"] = None
+                fixture["odds_avg_d"] = None
+                fixture["odds_avg_a"] = None
+                fixture["best_ev"] = None
+                fixture["best_ev_pick"] = None
+                fixture["value_bet"] = None
+                continue
+
+            p_h = _to_float_or_none(compared_row.get("p_H"))
+            p_d = _to_float_or_none(compared_row.get("p_D"))
+            p_a = _to_float_or_none(compared_row.get("p_A"))
+            odds_avg_h = _to_float_or_none(compared_row.get("odds_avg_h"))
+            odds_avg_d = _to_float_or_none(compared_row.get("odds_avg_d"))
+            odds_avg_a = _to_float_or_none(compared_row.get("odds_avg_a"))
+
+            fixture["p_H"] = p_h
+            fixture["p_D"] = p_d
+            fixture["p_A"] = p_a
+            fixture["odds_avg_h"] = odds_avg_h
+            fixture["odds_avg_d"] = odds_avg_d
+            fixture["odds_avg_a"] = odds_avg_a
+
+            best_ev = _to_float_or_none(compared_row.get("best_ev"))
+            if best_ev is None:
+                fixture["best_ev"] = None
+                fixture["best_ev_pick"] = None
+                fixture["value_bet"] = None
+                continue
+
+            best_pick = str(compared_row.get("best_ev_pick", "")).strip()
+            value_bet_value = compared_row.get("value_bet")
+
+            fixture["best_ev"] = best_ev
+            fixture["best_ev_pick"] = best_pick if best_pick else None
+            fixture["value_bet"] = bool(value_bet_value) if pd.notna(value_bet_value) else None
+
+    except Exception as exc:
+        for fixture in fixtures:
+            fixture["p_H"] = None
+            fixture["p_D"] = None
+            fixture["p_A"] = None
+            fixture["odds_avg_h"] = None
+            fixture["odds_avg_d"] = None
+            fixture["odds_avg_a"] = None
+            fixture["best_ev"] = None
+            fixture["best_ev_pick"] = None
+            fixture["value_bet"] = None
+
+        previous_error = str(response.get("error") or "").strip()
+        value_error = f"No se pudo calcular ranking de value bet: {exc}"
+        response["error"] = f"{previous_error} | {value_error}" if previous_error else value_error
+
+    response["fixtures"] = fixtures
+    response["rows"] = int(len(fixtures))
+    return response
+
+
 def _ensure_default_enriched_historical() -> Path:
     output_all = settings.output_dir / "laliga_enriched_all.csv"
     output_model = settings.output_dir / "laliga_enriched_model.csv"

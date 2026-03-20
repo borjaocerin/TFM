@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+from datetime import date, datetime
 import json
 from pathlib import Path
 from typing import Any
+import unicodedata
 
 import numpy as np
 import pandas as pd
@@ -36,6 +38,270 @@ def _load_team_map(path_value: str | None) -> dict[str, str]:
         if candidate.exists():
             return json.loads(candidate.read_text(encoding="utf-8"))
     return {}
+
+
+TEAM_MANUAL_ALIASES: dict[str, str] = {
+    "deportivo alaves": "Alaves",
+    "alaves": "Alaves",
+    "girona fc": "Girona",
+    "villarreal cf": "Villarreal",
+    "rcd mallorca": "Mallorca",
+    "fc barcelona": "Barcelona",
+    "valencia cf": "Valencia",
+    "rc celta de vigo": "Celta",
+    "club atletico de madrid": "Atletico Madrid",
+    "atletico de madrid": "Atletico Madrid",
+    "real oviedo": "Oviedo",
+    "ca osasuna": "Osasuna",
+    "real madrid cf": "Real Madrid",
+    "real betis balompie": "Betis",
+    "real sociedad de futbol": "Real Sociedad",
+    "rayo vallecano de madrid": "Rayo Vallecano",
+    "levante ud": "Levante",
+    "getafe cf": "Getafe",
+    "elche cf": "Elche",
+    "sevilla fc": "Sevilla",
+    "rcd espanyol de barcelona": "Espanyol",
+}
+
+
+def _normalize_text_basic(value: Any) -> str:
+    text = str(value or "").strip().lower()
+    if text == "":
+        return ""
+
+    text = unicodedata.normalize("NFKD", text)
+    text = "".join(char for char in text if not unicodedata.combining(char))
+    for token in [".", ",", ";", ":", "'", '"', "-", "_"]:
+        text = text.replace(token, " ")
+    return " ".join(text.split())
+
+
+def _canonical_team_name(team_name: Any, team_map: dict[str, str]) -> str:
+    raw = str(team_name or "").strip()
+    if raw == "":
+        return ""
+
+    direct = team_map.get(raw)
+    if direct:
+        return str(direct)
+
+    normalized_input = _normalize_text_basic(raw)
+    normalized_map: dict[str, str] = {}
+    for source_name, canonical_name in team_map.items():
+        canonical = str(canonical_name)
+        normalized_map[_normalize_text_basic(source_name)] = canonical
+        normalized_map[_normalize_text_basic(canonical)] = canonical
+
+    for alias, canonical in TEAM_MANUAL_ALIASES.items():
+        normalized_map[_normalize_text_basic(alias)] = canonical
+
+    mapped = normalized_map.get(normalized_input)
+    return mapped if mapped else raw
+
+
+def _season_start_from_match_date(match_date: date) -> float:
+    start_year = match_date.year if match_date.month >= 7 else match_date.year - 1
+    return float(start_year)
+
+
+def _result_from_score(home_goals: float, away_goals: float) -> str:
+    if home_goals > away_goals:
+        return "H"
+    if home_goals < away_goals:
+        return "A"
+    return "D"
+
+
+def _parse_score_pair(value: Any) -> tuple[float | None, float | None]:
+    if not isinstance(value, (list, tuple)) or len(value) < 2:
+        return None, None
+
+    try:
+        home_goals = float(value[0])
+        away_goals = float(value[1])
+    except Exception:
+        return None, None
+
+    if not np.isfinite(home_goals) or not np.isfinite(away_goals):
+        return None, None
+    return home_goals, away_goals
+
+
+def _empty_manual_results_frame() -> pd.DataFrame:
+    return pd.DataFrame(
+        columns=[
+            "date",
+            "season",
+            "home_team",
+            "away_team",
+            "home_goals",
+            "away_goals",
+            "result",
+            "ht_home_goals",
+            "ht_away_goals",
+            "ht_result",
+        ]
+    )
+
+
+def _extract_completed_manual_results(
+    manual_results_path: Path,
+    team_map: dict[str, str],
+    cutoff_date: date | None = None,
+) -> pd.DataFrame:
+    if not manual_results_path.exists():
+        return _empty_manual_results_frame()
+
+    payload: Any
+    try:
+        payload = json.loads(manual_results_path.read_text(encoding="utf-8"))
+    except Exception:
+        try:
+            payload = json.loads(manual_results_path.read_text(encoding="latin-1"))
+        except Exception:
+            return _empty_manual_results_frame()
+
+    matches = payload.get("matches") if isinstance(payload, dict) else None
+    if not isinstance(matches, list):
+        return _empty_manual_results_frame()
+
+    cutoff = cutoff_date or datetime.now().date()
+    rows: list[dict[str, Any]] = []
+
+    for item in matches:
+        if not isinstance(item, dict):
+            continue
+
+        raw_date = str(item.get("date", "")).strip()
+        if raw_date == "":
+            continue
+
+        parsed_date = pd.to_datetime(raw_date, errors="coerce", format="%Y-%m-%d")
+        if pd.isna(parsed_date):
+            parsed_date = pd.to_datetime(raw_date, errors="coerce", dayfirst=True)
+        if pd.isna(parsed_date):
+            continue
+
+        match_date = parsed_date.date()
+        if match_date > cutoff:
+            continue
+
+        score_obj = item.get("score")
+        score = score_obj if isinstance(score_obj, dict) else {}
+
+        home_goals, away_goals = _parse_score_pair(score.get("ft"))
+        if home_goals is None or away_goals is None:
+            continue
+
+        ht_home_goals, ht_away_goals = _parse_score_pair(score.get("ht"))
+        ht_result = (
+            _result_from_score(ht_home_goals, ht_away_goals)
+            if ht_home_goals is not None and ht_away_goals is not None
+            else np.nan
+        )
+
+        home_raw = item.get("team1") or item.get("home_team") or item.get("home")
+        away_raw = item.get("team2") or item.get("away_team") or item.get("away")
+        home_team = _canonical_team_name(home_raw, team_map)
+        away_team = _canonical_team_name(away_raw, team_map)
+        if home_team == "" or away_team == "":
+            continue
+
+        rows.append(
+            {
+                "date": match_date.isoformat(),
+                "season": _season_start_from_match_date(match_date),
+                "home_team": home_team,
+                "away_team": away_team,
+                "home_goals": home_goals,
+                "away_goals": away_goals,
+                "result": _result_from_score(home_goals, away_goals),
+                "ht_home_goals": ht_home_goals,
+                "ht_away_goals": ht_away_goals,
+                "ht_result": ht_result,
+            }
+        )
+
+    if not rows:
+        return _empty_manual_results_frame()
+
+    out = pd.DataFrame(rows)
+    out = out.drop_duplicates(subset=["date", "home_team", "away_team"], keep="last")
+    out = out.sort_values(["date", "home_team", "away_team"]).reset_index(drop=True)
+    return out
+
+
+def _augment_historical_with_manual_results(
+    historical: pd.DataFrame,
+    team_map: dict[str, str],
+    manual_results_path: Path | None = None,
+    cutoff_date: date | None = None,
+) -> pd.DataFrame:
+    manual_path = manual_results_path or (settings.data_dir / "fixtures" / "proximosPartidos.json")
+    manual = _extract_completed_manual_results(manual_path, team_map, cutoff_date=cutoff_date)
+    if manual.empty:
+        return historical
+
+    out = historical.copy()
+    for column in [
+        "date",
+        "season",
+        "home_team",
+        "away_team",
+        "home_goals",
+        "away_goals",
+        "result",
+        "ht_home_goals",
+        "ht_away_goals",
+        "ht_result",
+    ]:
+        if column not in out.columns:
+            out[column] = np.nan
+
+    out["date"] = pd.to_datetime(out["date"], errors="coerce").dt.strftime("%Y-%m-%d")
+    out["home_team"] = out["home_team"].map(lambda value: _canonical_team_name(value, team_map))
+    out["away_team"] = out["away_team"].map(lambda value: _canonical_team_name(value, team_map))
+
+    out["__key"] = out["date"].astype(str) + "|" + out["home_team"].astype(str) + "|" + out["away_team"].astype(str)
+    manual_with_key = manual.copy()
+    manual_with_key["__key"] = (
+        manual_with_key["date"].astype(str)
+        + "|"
+        + manual_with_key["home_team"].astype(str)
+        + "|"
+        + manual_with_key["away_team"].astype(str)
+    )
+    manual_by_key = manual_with_key.set_index("__key")
+
+    numeric_fill_columns = ["season", "home_goals", "away_goals", "ht_home_goals", "ht_away_goals"]
+    for column in numeric_fill_columns:
+        out[column] = pd.to_numeric(out[column], errors="coerce")
+        mapped = out["__key"].map(manual_by_key[column])
+        out[column] = out[column].where(out[column].notna(), mapped)
+
+    for column in ["result", "ht_result"]:
+        current = out[column].astype(str).str.strip()
+        missing = current.isin(["", "nan", "none", "null", "NaN", "None", "NULL"])
+        mapped = out["__key"].map(manual_by_key[column])
+        out.loc[missing, column] = mapped[missing]
+
+    existing_keys = set(out["__key"])
+    new_rows = manual_with_key[~manual_with_key["__key"].isin(existing_keys)].copy()
+
+    base_columns = [column for column in out.columns if column != "__key"]
+    out = out.drop(columns=["__key"])
+
+    if not new_rows.empty:
+        new_rows = new_rows.drop(columns=["__key"])
+        for column in base_columns:
+            if column not in new_rows.columns:
+                new_rows[column] = np.nan
+        new_rows = new_rows[base_columns]
+        out = pd.concat([out, new_rows], ignore_index=True, sort=False)
+
+    out = out.sort_values(["date", "home_team", "away_team"]).reset_index(drop=True)
+    return out
 
 
 def _normalize_historical_columns(raw: pd.DataFrame, team_map: dict[str, str]) -> pd.DataFrame:
@@ -95,8 +361,8 @@ def _normalize_historical_columns(raw: pd.DataFrame, team_map: dict[str, str]) -
             df[column] = np.nan
 
     df["date"] = pd.to_datetime(df["date"], errors="coerce", dayfirst=True).dt.strftime("%Y-%m-%d")
-    df["home_team"] = df["home_team"].map(lambda value: team_map.get(str(value), str(value)))
-    df["away_team"] = df["away_team"].map(lambda value: team_map.get(str(value), str(value)))
+    df["home_team"] = df["home_team"].map(lambda value: _canonical_team_name(value, team_map))
+    df["away_team"] = df["away_team"].map(lambda value: _canonical_team_name(value, team_map))
 
     df = df.dropna(subset=["date", "home_team", "away_team"])
     df = df.sort_values("date")
@@ -152,7 +418,12 @@ def _build_model_dataset(df: pd.DataFrame) -> pd.DataFrame:
     return out[selected]
 
 
-def _summary(df: pd.DataFrame, output_all: Path, output_model: Path) -> dict[str, Any]:
+def _summary(
+    df: pd.DataFrame,
+    output_all: Path,
+    output_model: Path,
+    historical_augmented_output: Path | None = None,
+) -> dict[str, Any]:
     rows_by_season = (
         df["season"].astype(str).fillna("unknown").value_counts(dropna=False).sort_index().to_dict()
         if "season" in df.columns
@@ -167,6 +438,7 @@ def _summary(df: pd.DataFrame, output_all: Path, output_model: Path) -> dict[str
         "columns": list(df.columns),
         "output_all": str(output_all),
         "output_model": str(output_model),
+        "historical_augmented_output": str(historical_augmented_output) if historical_augmented_output else None,
     }
 
 
@@ -174,6 +446,7 @@ def ingest_datasets(request: DatasetIngestRequest) -> dict[str, Any]:
     historical_path = _resolve_path(request.historical)
     football_data_dir = _resolve_path(request.football_data_dir)
     elo_path = _resolve_path(request.elo_csv)
+    manual_results_path = _resolve_path(request.manual_results_json)
 
     if historical_path is None or not historical_path.exists():
         raise FileNotFoundError("No existe historical CSV")
@@ -183,6 +456,16 @@ def ingest_datasets(request: DatasetIngestRequest) -> dict[str, Any]:
     team_map = _load_team_map(request.team_map)
     historical_raw = pd.read_csv(historical_path)
     historical = _normalize_historical_columns(historical_raw, team_map)
+    if request.include_manual_results:
+        historical = _augment_historical_with_manual_results(
+            historical,
+            team_map,
+            manual_results_path=manual_results_path,
+        )
+
+    settings.output_dir.mkdir(parents=True, exist_ok=True)
+    historical_augmented_output = settings.output_dir / "laliga_historical_augmented.csv"
+    historical.to_csv(historical_augmented_output, index=False)
 
     fdata = load_football_data(football_data_dir, team_map)
     merged = historical.merge(fdata, on=["date", "home_team", "away_team"], how="left")
@@ -192,7 +475,6 @@ def ingest_datasets(request: DatasetIngestRequest) -> dict[str, Any]:
     merged = enrich_with_elo(merged, elo_path, team_map)
     merged = add_target_label(merged)
 
-    settings.output_dir.mkdir(parents=True, exist_ok=True)
     output_all = settings.output_dir / "laliga_enriched_all.csv"
     output_model = settings.output_dir / "laliga_enriched_model.csv"
 
@@ -200,7 +482,12 @@ def ingest_datasets(request: DatasetIngestRequest) -> dict[str, Any]:
     model_df = _build_model_dataset(merged)
     model_df.to_csv(output_model, index=False)
 
-    return _summary(merged, output_all, output_model)
+    return _summary(
+        merged,
+        output_all,
+        output_model,
+        historical_augmented_output=historical_augmented_output,
+    )
 
 
 def build_fixtures_features(request: FixturesFeatureRequest) -> dict[str, Any]:

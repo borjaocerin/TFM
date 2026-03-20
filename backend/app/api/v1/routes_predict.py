@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 
 from app.schemas.predict import (
     PredictRequest,
@@ -9,7 +9,12 @@ from app.schemas.predict import (
     PredictUpcomingResponse,
     UpcomingFixturesResponse,
 )
-from app.services.predict import list_upcoming_fixture_options, predict_matches, predict_selected_upcoming_match
+from app.services.predict import (
+    list_upcoming_fixture_options,
+    list_upcoming_fixture_options_with_value,
+    predict_matches,
+    predict_selected_upcoming_match,
+)
 
 router = APIRouter(tags=["predict"])
 
@@ -23,8 +28,15 @@ def predict(request: PredictRequest) -> PredictResponse:
 
 
 @router.get("/predict/options/upcoming", response_model=UpcomingFixturesResponse)
-def upcoming_options() -> UpcomingFixturesResponse:
+def upcoming_options(
+    include_value: bool = Query(default=False),
+    value_threshold: float = Query(default=0.02, ge=0.0, le=1.0),
+) -> UpcomingFixturesResponse:
     try:
+        if include_value:
+            return UpcomingFixturesResponse(
+                **list_upcoming_fixture_options_with_value(value_threshold=value_threshold)
+            )
         return UpcomingFixturesResponse(**list_upcoming_fixture_options())
     except Exception as exc:  # pragma: no cover - error mapping
         raise HTTPException(status_code=400, detail=str(exc)) from exc

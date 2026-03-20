@@ -8,6 +8,14 @@ class DatasetIngestRequest(BaseModel):
     football_data_dir: str = Field(..., description="Directorio con CSV de Football-Data")
     elo_csv: str | None = Field(default=None, description="Ruta opcional a ELO_RATINGS.csv")
     team_map: str | None = Field(default=None, description="Ruta opcional a team_name_map_es.json")
+    include_manual_results: bool = Field(
+        default=True,
+        description="Si true, integra resultados jugados desde fixtures/proximosPartidos.json",
+    )
+    manual_results_json: str | None = Field(
+        default=None,
+        description="Ruta opcional al JSON manual de fixtures/resultados para ampliar historico",
+    )
     windows: list[int] = Field(default_factory=lambda: [5, 10])
 
     @field_validator("windows")
@@ -28,6 +36,7 @@ class DatasetIngestResponse(BaseModel):
     columns: list[str]
     output_all: str
     output_model: str
+    historical_augmented_output: str | None = None
 
 
 class FixturesFeatureRequest(BaseModel):

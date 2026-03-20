@@ -64,6 +64,15 @@ export type UpcomingFixtureOption = {
   away_team: string;
   label: string;
   round?: string; // jornada
+  p_H?: number | null;
+  p_D?: number | null;
+  p_A?: number | null;
+  odds_avg_h?: number | null;
+  odds_avg_d?: number | null;
+  odds_avg_a?: number | null;
+  best_ev?: number | null;
+  best_ev_pick?: string | null;
+  value_bet?: boolean | null;
 };
 
 export type UpcomingFixturesResponse = {
@@ -170,8 +179,25 @@ export async function getActiveModel(): Promise<{
   return response.data;
 }
 
-export async function getUpcomingFixtures(): Promise<UpcomingFixturesResponse> {
-  const response = await api.get<UpcomingFixturesResponse>("/predict/options/upcoming");
+export type UpcomingFixturesQuery = {
+  includeValue?: boolean;
+  valueThreshold?: number;
+};
+
+export async function getUpcomingFixtures(query: UpcomingFixturesQuery = {}): Promise<UpcomingFixturesResponse> {
+  const includeValue = Boolean(query.includeValue);
+  const valueThreshold = Number.isFinite(query.valueThreshold)
+    ? Number(query.valueThreshold)
+    : 0.02;
+
+  const response = await api.get<UpcomingFixturesResponse>("/predict/options/upcoming", {
+    params: includeValue
+      ? {
+          include_value: true,
+          value_threshold: valueThreshold
+        }
+      : undefined
+  });
   return response.data;
 }
 
