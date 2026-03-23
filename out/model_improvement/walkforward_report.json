@@ -1,0 +1,16 @@
+{
+  "dataset_path": "C:/Users/borja.ocerinjauregui/Desktop/TFM/TFM/data/out/laliga_enriched_model.csv",
+  "rows": 4827,
+  "n_splits": 4,
+  "feature_count": 51,
+  "best_strategy": {
+    "model": "extra_trees",
+    "ev_threshold": 0.0,
+    "min_prob_threshold": 0.5,
+    "bets": 1081,
+    "wins": 682,
+    "hit_rate": 0.6308973172987974,
+    "profit": 283.0,
+    "roi": 0.26179463459759483
+  }
+}

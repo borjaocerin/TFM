@@ -1,0 +1,17 @@
+RESULTADOS JORNADA (Semana 29)
+Fecha de guardado: 2026-03-23
+
+Estrategia:
+- 1€ apostado por partido
+- Selección: resultado con mayor EV del modelo en cada partido
+
+Resumen:
+- Partidos liquidados: 10
+- Aciertos: 4
+- Fallos: 6
+- Beneficio neto: -1.5452 €
+- ROI real jornada: -15.45%
+- Bankroll final (sobre 10€ apostados): 8.4548 €
+
+Nota:
+Estos valores se calcularon usando las cuotas y picks de la jornada en out/roi/roi_upcoming_detail.csv y los marcadores finales proporcionados por el usuario.

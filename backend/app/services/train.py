@@ -143,7 +143,7 @@ def _load_training_data(dataset_path: Path) -> tuple[pd.DataFrame, pd.Series, li
 
 def _candidate_estimators(use_xgb: bool, use_catboost: bool) -> dict[str, Any]:
     estimators: dict[str, Any] = {
-        "logreg": LogisticRegression(max_iter=2000, multi_class="multinomial"),
+        "logreg": LogisticRegression(max_iter=2000),
         "random_forest": RandomForestClassifier(
             n_estimators=400,
             random_state=42,
@@ -157,13 +157,6 @@ def _candidate_estimators(use_xgb: bool, use_catboost: bool) -> dict[str, Any]:
             min_samples_leaf=2,
             n_jobs=-1,
             class_weight="balanced_subsample",
-        ),
-        "hist_gradient_boosting": HistGradientBoostingClassifier(
-            max_depth=6,
-            learning_rate=0.05,
-            max_iter=400,
-            min_samples_leaf=20,
-            random_state=42,
         ),
     }
     if use_xgb and XGB_AVAILABLE:

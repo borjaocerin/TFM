@@ -1,0 +1,19 @@
+DETALLE RESULTADOS JORNADA (Semana 29)
+Partidos liquidados: 10
+Aciertos: 4
+Fallos: 6
+Beneficio neto: -1.5452 €
+ROI: -15.45%
+Bankroll final (sobre 10€): 8.4548 €
+
+Partido | Pick | Resultado | Cuota pick | Beneficio
+Villarreal vs Real Sociedad | H | H | 1.9409 | 0.9409 €
+Elche vs Mallorca | H | H | 2.1359 | 1.1359 €
+Espanyol vs Getafe | H | A | 2.4255 | -1.0000 €
+Levante vs Oviedo | D | H | 3.3532 | -1.0000 €
+Osasuna vs Girona | H | H | 2.1723 | 1.1723 €
+Sevilla vs Valencia | H | A | 2.2645 | -1.0000 €
+Athletic Club vs Real Betis | H | H | 2.2057 | 1.2057 €
+Barcelona vs Rayo Vallecano | D | H | 6.9973 | -1.0000 €
+Celta Vigo vs Alaves | D | A | 3.3723 | -1.0000 €
+Real Madrid vs Atletico Madrid | D | H | 3.8471 | -1.0000 €

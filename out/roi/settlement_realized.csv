@@ -1,0 +1,21 @@
+date,home_team,away_team,best_pick,actual_result,bet_won,realized_profit_eur,is_next_jornada,realized_bankroll_cumulative_eur
+2026-03-20,Villarreal,Real Sociedad,H,H,True,0.9409090909090911,True,0.9409090909090911
+2026-03-21,Elche,Mallorca,H,H,True,1.1359090909090912,True,2.076818181818182
+2026-03-21,Espanyol,Getafe,H,A,False,-1.0,True,1.0768181818181821
+2026-03-21,Levante,Oviedo,D,H,False,-1.0,True,0.07681818181818212
+2026-03-21,Osasuna,Girona,H,H,True,1.172272727272727,True,1.249090909090909
+2026-03-21,Sevilla,Valencia,H,A,False,-1.0,True,0.24909090909090903
+2026-03-22,Athletic Club,Real Betis,H,H,True,1.205714285714285,True,1.454805194805194
+2026-03-22,Barcelona,Rayo Vallecano,D,H,False,-1.0,True,0.4548051948051941
+2026-03-22,Celta Vigo,Alaves,D,A,False,-1.0,True,-0.5451948051948059
+2026-03-22,Real Madrid,Atletico Madrid,D,H,False,-1.0,True,-1.545194805194806
+2026-04-03,Rayo Vallecano,Elche,A,,,,False,-1.545194805194806
+2026-04-04,Alaves,Osasuna,H,,,,False,-1.545194805194806
+2026-04-04,Atletico Madrid,Barcelona,D,,,,False,-1.545194805194806
+2026-04-04,Mallorca,Real Madrid,A,,,,False,-1.545194805194806
+2026-04-04,Real Sociedad,Levante,D,,,,False,-1.545194805194806
+2026-04-05,Getafe,Athletic Club,D,,,,False,-1.545194805194806
+2026-04-05,Oviedo,Sevilla,H,,,,False,-1.545194805194806
+2026-04-05,Real Betis,Espanyol,D,,,,False,-1.545194805194806
+2026-04-05,Valencia,Celta Vigo,A,,,,False,-1.545194805194806
+2026-04-06,Girona,Villarreal,A,,,,False,-1.545194805194806
