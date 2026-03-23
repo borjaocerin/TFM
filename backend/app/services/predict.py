@@ -1345,15 +1345,16 @@ def predict_selected_upcoming_match(request: PredictUpcomingRequest) -> dict[str
     if pd.isna(parsed_date):
         raise ValueError("La fecha enviada no es valida")
 
-    fixture_df = pd.DataFrame(
-        [
-            {
-                "date": parsed_date.strftime("%Y-%m-%d"),
-                "home_team": _canonical_team_name(request.home_team, team_map),
-                "away_team": _canonical_team_name(request.away_team, team_map),
-            }
-        ]
-    )
+    requested_round = str(request.round or "").strip()
+    fixture_payload: dict[str, Any] = {
+        "date": parsed_date.strftime("%Y-%m-%d"),
+        "home_team": _canonical_team_name(request.home_team, team_map),
+        "away_team": _canonical_team_name(request.away_team, team_map),
+    }
+    if requested_round != "":
+        fixture_payload["round"] = requested_round
+
+    fixture_df = pd.DataFrame([fixture_payload])
 
     historical_df = pd.read_csv(historical_path)
     enriched = enrich_fixtures(fixture_df, historical_df, DEFAULT_WINDOWS, team_map)

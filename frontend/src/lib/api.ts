@@ -87,6 +87,7 @@ export type PredictUpcomingPayload = {
   date: string;
   home_team: string;
   away_team: string;
+  round?: string;
 };
 
 export type PredictUpcomingResponse = {

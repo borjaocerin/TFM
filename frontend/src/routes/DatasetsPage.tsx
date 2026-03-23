@@ -14,19 +14,6 @@ import {
 } from "../lib/fixtures";
 import { useAppStore } from "../lib/state/appStore";
 
-const VALUE_BET_THRESHOLD = 0.02;
-type FixturesSortMode = "date" | "value_desc" | "value_asc";
-
-function formatSignedPercentage(value: number): string {
-  if (!Number.isFinite(value)) {
-    return "-";
-  }
-
-  const percentage = value * 100;
-  const sign = percentage > 0 ? "+" : "";
-  return `${sign}${percentage.toFixed(1)}%`;
-}
-
 function buildFixturePredictionPath(fixture: UpcomingFixtureOption): string {
   const params = new URLSearchParams({
     date: fixture.date,
@@ -39,22 +26,6 @@ function buildFixturePredictionPath(fixture: UpcomingFixtureOption): string {
     params.set("round", round);
   }
 
-  const snapshotEntries: Array<[string, number | null | undefined]> = [
-    ["snap_p_h", fixture.p_H],
-    ["snap_p_d", fixture.p_D],
-    ["snap_p_a", fixture.p_A],
-    ["snap_odds_h", fixture.odds_avg_h],
-    ["snap_odds_d", fixture.odds_avg_d],
-    ["snap_odds_a", fixture.odds_avg_a]
-  ];
-
-  snapshotEntries.forEach(([key, value]) => {
-    const numeric = Number(value ?? Number.NaN);
-    if (Number.isFinite(numeric)) {
-      params.set(key, String(numeric));
-    }
-  });
-
   return `/partido?${params.toString()}`;
 }
 
@@ -62,31 +33,12 @@ export function DatasetsPage() {
   const [fixtures, setFixtures] = useState<UpcomingFixtureOption[]>([]);
   const [selectedRound, setSelectedRound] = useState<string>("");
   const [searchText, setSearchText] = useState<string>("");
-  const [sortMode, setSortMode] = useState<FixturesSortMode>("date");
-  const [valueRankingLoading, setValueRankingLoading] = useState(false);
-  const [valueRankingLoaded, setValueRankingLoaded] = useState(false);
-  const [valueRankingAttempted, setValueRankingAttempted] = useState(false);
   const setToast = useAppStore((state) => state.setToast);
 
-  const loadFixtures = async (includeValue = false) => {
-    if (includeValue) {
-      setValueRankingLoading(true);
-      setValueRankingAttempted(true);
-    }
-
+  const loadFixtures = async () => {
     try {
-      const response = await getUpcomingFixtures(
-        includeValue
-          ? {
-              includeValue: true,
-              valueThreshold: VALUE_BET_THRESHOLD
-            }
-          : undefined
-      );
+      const response = await getUpcomingFixtures();
       setFixtures(response.fixtures);
-      if (includeValue) {
-        setValueRankingLoaded(true);
-      }
 
       if (response.fixtures.length > 0) {
         const demoNote = response.source_path?.startsWith("demo:") ? " (datos historicos de demo)" : "";
@@ -100,24 +52,12 @@ export function DatasetsPage() {
       }
     } catch (error) {
       setToast(`Error cargando partidos: ${String(error)}`);
-    } finally {
-      if (includeValue) {
-        setValueRankingLoading(false);
-      }
     }
   };
 
   useEffect(() => {
     void loadFixtures();
   }, []);
-
-  useEffect(() => {
-    if (sortMode === "date" || valueRankingLoaded || valueRankingLoading || valueRankingAttempted) {
-      return;
-    }
-
-    void loadFixtures(true);
-  }, [sortMode, valueRankingAttempted, valueRankingLoaded, valueRankingLoading]);
 
   const rounds = useMemo(() => {
     const unique: string[] = Array.from(
@@ -178,35 +118,8 @@ export function DatasetsPage() {
         sensitivity: "base"
       });
     };
-
-    const sortedByDate = [...filteredFixtures].sort(compareByDate);
-    if (sortMode === "date") {
-      return sortedByDate;
-    }
-
-    const descending = sortMode === "value_desc";
-    return sortedByDate.sort((left, right) => {
-      const leftEv = Number(left.best_ev ?? Number.NaN);
-      const rightEv = Number(right.best_ev ?? Number.NaN);
-
-      const leftHasEv = Number.isFinite(leftEv);
-      const rightHasEv = Number.isFinite(rightEv);
-
-      if (leftHasEv && rightHasEv && leftEv !== rightEv) {
-        return descending ? rightEv - leftEv : leftEv - rightEv;
-      }
-
-      if (leftHasEv !== rightHasEv) {
-        return leftHasEv ? -1 : 1;
-      }
-
-      return compareByDate(left, right);
-    });
-  }, [filteredFixtures, sortMode]);
-
-  const handleSortChange = (nextSortMode: FixturesSortMode) => {
-    setSortMode(nextSortMode);
-  };
+    return [...filteredFixtures].sort(compareByDate);
+  }, [filteredFixtures]);
 
   return (
     <div className="panel">
@@ -236,17 +149,6 @@ export function DatasetsPage() {
           style={{ width: "100%", marginTop: "0.5rem" }}
         />
       </div>
-      <div className="field">
-        <label>Ordenar partidos</label>
-        <select value={sortMode} onChange={(event) => handleSortChange(event.target.value as FixturesSortMode)}>
-          <option value="date">Fecha (próximo primero)</option>
-          <option value="value_desc">Value bet (mejor EV → peor EV)</option>
-          <option value="value_asc">Value bet (peor EV → mejor EV)</option>
-        </select>
-        {sortMode !== "date" && valueRankingLoading && (
-          <p className="small-note">Calculando ranking de value bet para los partidos...</p>
-        )}
-      </div>
       <div className="fixture-cards-grid">
         {sortedFixtures.length === 0 && (
           <div style={{ padding: "1.5rem", textAlign: "center", color: "#b0b0b0" }}>
@@ -263,11 +165,6 @@ export function DatasetsPage() {
               <div className="fixture-card-round">{formatRoundLabel(fixture.round)}</div>
             )}
             <div className="fixture-card-date">{fixture.date}</div>
-            {Number.isFinite(Number(fixture.best_ev ?? Number.NaN)) && (
-              <div className={fixture.value_bet ? "fixture-card-status tag-value" : "fixture-card-status"}>
-                EV {formatSignedPercentage(Number(fixture.best_ev))} · Pick {String(fixture.best_ev_pick ?? "-")}
-              </div>
-            )}
             <div className="fixture-card-body">
               <div className="fixture-team">
                 <img

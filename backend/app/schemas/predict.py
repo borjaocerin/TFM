@@ -60,6 +60,7 @@ class PredictUpcomingRequest(BaseModel):
     date: str
     home_team: str
     away_team: str
+    round: str | None = None
 
 
 class PredictUpcomingResponse(BaseModel):
