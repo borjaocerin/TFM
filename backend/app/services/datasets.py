@@ -304,7 +304,141 @@ def _augment_historical_with_manual_results(
     return out
 
 
+def _to_numeric_column(frame: pd.DataFrame, column: str) -> pd.Series:
+    if column not in frame.columns:
+        return pd.Series(np.nan, index=frame.index, dtype=float)
+    return pd.to_numeric(frame[column], errors="coerce")
+
+
+def _normalize_team_level_historical(raw: pd.DataFrame, team_map: dict[str, str]) -> pd.DataFrame:
+    df = raw.copy()
+    df.columns = [str(column).strip().lower() for column in df.columns]
+
+    required = {"date", "team", "opponent", "venue", "gf", "ga"}
+    if not required.issubset(set(df.columns)):
+        return pd.DataFrame()
+
+    df["date"] = pd.to_datetime(df["date"], errors="coerce", dayfirst=True).dt.strftime("%Y-%m-%d")
+    df["team"] = df["team"].map(lambda value: _canonical_team_name(value, team_map))
+    df["opponent"] = df["opponent"].map(lambda value: _canonical_team_name(value, team_map))
+    df["venue"] = df["venue"].astype(str).str.strip().str.lower()
+
+    df["gf"] = _to_numeric_column(df, "gf")
+    df["ga"] = _to_numeric_column(df, "ga")
+    df["xg"] = _to_numeric_column(df, "xg")
+    df["xga"] = _to_numeric_column(df, "xga")
+    df["poss"] = _to_numeric_column(df, "poss")
+    df["sh"] = _to_numeric_column(df, "sh")
+    df["sot"] = _to_numeric_column(df, "sot")
+    if "season" in df.columns:
+        df["season"] = pd.to_numeric(df["season"], errors="coerce")
+    else:
+        df["season"] = np.nan
+
+    home_mask = df["venue"].isin(["home", "casa", "local"])
+    away_mask = df["venue"].isin(["away", "fuera", "visitante"])
+
+    df["home_team"] = np.where(home_mask, df["team"], np.where(away_mask, df["opponent"], np.nan))
+    df["away_team"] = np.where(home_mask, df["opponent"], np.where(away_mask, df["team"], np.nan))
+    df["home_goals"] = np.where(home_mask, df["gf"], np.where(away_mask, df["ga"], np.nan))
+    df["away_goals"] = np.where(home_mask, df["ga"], np.where(away_mask, df["gf"], np.nan))
+
+    df = df.dropna(subset=["date", "home_team", "away_team"])
+
+    rows: list[dict[str, Any]] = []
+    grouped = df.groupby(["date", "home_team", "away_team"], dropna=False)
+    for (match_date, home_team, away_team), group in grouped:
+        home_row = group[group["team"] == home_team].head(1)
+        away_row = group[group["team"] == away_team].head(1)
+
+        home_row_series = home_row.iloc[0] if len(home_row) > 0 else None
+        away_row_series = away_row.iloc[0] if len(away_row) > 0 else None
+
+        home_goals = (
+            float(home_row_series["gf"]) if home_row_series is not None and pd.notna(home_row_series["gf"]) else np.nan
+        )
+        away_goals = (
+            float(away_row_series["gf"]) if away_row_series is not None and pd.notna(away_row_series["gf"]) else np.nan
+        )
+        if pd.isna(home_goals) or pd.isna(away_goals):
+            fallback = group.head(1).iloc[0]
+            home_goals = fallback["home_goals"]
+            away_goals = fallback["away_goals"]
+
+        xg_home = home_row_series["xg"] if home_row_series is not None else np.nan
+        xg_away = away_row_series["xg"] if away_row_series is not None else np.nan
+        xga_home = home_row_series["xga"] if home_row_series is not None else np.nan
+        xga_away = away_row_series["xga"] if away_row_series is not None else np.nan
+
+        if pd.isna(xg_home) and pd.notna(xga_away):
+            xg_home = xga_away
+        if pd.isna(xg_away) and pd.notna(xga_home):
+            xg_away = xga_home
+        if pd.isna(xga_home) and pd.notna(xg_away):
+            xga_home = xg_away
+        if pd.isna(xga_away) and pd.notna(xg_home):
+            xga_away = xg_home
+
+        poss_home = home_row_series["poss"] if home_row_series is not None else np.nan
+        poss_away = away_row_series["poss"] if away_row_series is not None else np.nan
+        if pd.isna(poss_home) and pd.notna(poss_away):
+            poss_home = 100.0 - float(poss_away)
+        if pd.isna(poss_away) and pd.notna(poss_home):
+            poss_away = 100.0 - float(poss_home)
+
+        sh_home = home_row_series["sh"] if home_row_series is not None else np.nan
+        sh_away = away_row_series["sh"] if away_row_series is not None else np.nan
+        sot_home = home_row_series["sot"] if home_row_series is not None else np.nan
+        sot_away = away_row_series["sot"] if away_row_series is not None else np.nan
+
+        season = np.nan
+        if home_row_series is not None and pd.notna(home_row_series.get("season")):
+            season = float(home_row_series["season"])
+        elif away_row_series is not None and pd.notna(away_row_series.get("season")):
+            season = float(away_row_series["season"])
+        else:
+            parsed = pd.to_datetime(match_date, errors="coerce")
+            if pd.notna(parsed):
+                season = float(parsed.year if parsed.month >= 7 else parsed.year - 1)
+
+        result = _result_from_score(float(home_goals), float(away_goals)) if pd.notna(home_goals) and pd.notna(away_goals) else np.nan
+
+        rows.append(
+            {
+                "date": match_date,
+                "season": season,
+                "home_team": home_team,
+                "away_team": away_team,
+                "home_goals": home_goals,
+                "away_goals": away_goals,
+                "result": result,
+                "xg_home": xg_home,
+                "xg_away": xg_away,
+                "xga_home": xga_home,
+                "xga_away": xga_away,
+                "poss_home": poss_home,
+                "poss_away": poss_away,
+                "sh_home": sh_home,
+                "sh_away": sh_away,
+                "sot_home": sot_home,
+                "sot_away": sot_away,
+            }
+        )
+
+    if not rows:
+        return pd.DataFrame()
+
+    out = pd.DataFrame(rows)
+    out = out.drop_duplicates(subset=["date", "home_team", "away_team"], keep="last")
+    out = out.sort_values(["date", "home_team", "away_team"]).reset_index(drop=True)
+    return out
+
+
 def _normalize_historical_columns(raw: pd.DataFrame, team_map: dict[str, str]) -> pd.DataFrame:
+    normalized_team_level = _normalize_team_level_historical(raw, team_map)
+    if not normalized_team_level.empty:
+        return normalized_team_level
+
     df = raw.copy()
     rename_map: dict[str, str] = {
         "date": "date",

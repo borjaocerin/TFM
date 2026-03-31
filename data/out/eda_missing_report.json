@@ -1,0 +1,384 @@
+{
+  "dataset_path": "C:\\Users\\borja.ocerinjauregui\\Desktop\\TFM\\TFM\\data\\out\\laliga_enriched_model.csv",
+  "created_at_utc": "2026-03-27T09:20:39.084636+00:00",
+  "rows_raw": 4827,
+  "rows_filtered": 1261,
+  "columns": 60,
+  "filters": {
+    "rows_before": 4827,
+    "rows_after": 1261,
+    "min_season": 2019,
+    "xg_poss_min_coverage_pct": 80.0,
+    "seasons_selected": [
+      2019.0,
+      2020.0,
+      2021.0,
+      2022.0,
+      2023.0,
+      2024.0,
+      2025.0
+    ]
+  },
+  "top_missing_pct_raw": {
+    "sh_last5_diff": 75.11912160762378,
+    "xg_last5_diff": 75.11912160762378,
+    "poss_last5_diff": 75.11912160762378,
+    "xga_last5_diff": 75.11912160762378,
+    "sot_last5_diff": 75.11912160762378,
+    "xg_last10_diff": 75.07768800497203,
+    "poss_last10_diff": 75.07768800497203,
+    "xga_last10_diff": 75.07768800497203,
+    "sot_last10_diff": 75.07768800497203,
+    "sh_last10_diff": 75.07768800497203,
+    "sot_last5_away": 73.79324632276777,
+    "sh_last5_away": 73.79324632276777,
+    "xg_last5_away": 73.79324632276777,
+    "xga_last5_away": 73.79324632276777,
+    "poss_last5_away": 73.79324632276777,
+    "sh_last10_away": 73.77252952144188,
+    "sot_last10_away": 73.77252952144188,
+    "poss_last10_away": 73.77252952144188,
+    "xg_last10_away": 73.77252952144188,
+    "xga_last10_away": 73.77252952144188,
+    "xga_last5_home": 73.420343898902,
+    "sot_last5_home": 73.420343898902,
+    "sh_last5_home": 73.420343898902,
+    "poss_last5_home": 73.420343898902,
+    "xg_last5_home": 73.420343898902
+  },
+  "top_missing_pct_filtered": {
+    "sh_last5_diff": 9.119746233148295,
+    "xg_last5_diff": 9.119746233148295,
+    "poss_last5_diff": 9.119746233148295,
+    "xga_last5_diff": 9.119746233148295,
+    "sot_last5_diff": 9.119746233148295,
+    "xg_last10_diff": 8.961141950832673,
+    "poss_last10_diff": 8.961141950832673,
+    "xga_last10_diff": 8.961141950832673,
+    "sot_last10_diff": 8.961141950832673,
+    "sh_last10_diff": 8.961141950832673,
+    "sot_last5_away": 5.392545598731166,
+    "sh_last5_away": 5.392545598731166,
+    "xg_last5_away": 5.392545598731166,
+    "xga_last5_away": 5.392545598731166,
+    "poss_last5_away": 5.392545598731166,
+    "sh_last10_away": 5.313243457573354,
+    "sot_last10_away": 5.313243457573354,
+    "poss_last10_away": 5.313243457573354,
+    "xg_last10_away": 5.313243457573354,
+    "xga_last10_away": 5.313243457573354,
+    "xga_last5_home": 4.123711340206185,
+    "sot_last5_home": 4.123711340206185,
+    "sh_last5_home": 4.123711340206185,
+    "poss_last5_home": 4.123711340206185,
+    "xg_last5_home": 4.123711340206185
+  },
+  "xg_poss_coverage_by_season_raw": [
+    {
+      "season": 1995.0,
+      "xg_last5_home": 0.0,
+      "xg_last5_away": 0.0,
+      "poss_last5_home": 0.0,
+      "poss_last5_away": 0.0,
+      "coverage_min_pct": 0.0
+    },
+    {
+      "season": 1996.0,
+      "xg_last5_home": 0.0,
+      "xg_last5_away": 0.0,
+      "poss_last5_home": 0.0,
+      "poss_last5_away": 0.0,
+      "coverage_min_pct": 0.0
+    },
+    {
+      "season": 1997.0,
+      "xg_last5_home": 0.0,
+      "xg_last5_away": 0.0,
+      "poss_last5_home": 0.0,
+      "poss_last5_away": 0.0,
+      "coverage_min_pct": 0.0
+    },
+    {
+      "season": 1998.0,
+      "xg_last5_home": 0.0,
+      "xg_last5_away": 0.0,
+      "poss_last5_home": 0.0,
+      "poss_last5_away": 0.0,
+      "coverage_min_pct": 0.0
+    },
+    {
+      "season": 1999.0,
+      "xg_last5_home": 0.0,
+      "xg_last5_away": 0.0,
+      "poss_last5_home": 0.0,
+      "poss_last5_away": 0.0,
+      "coverage_min_pct": 0.0
+    },
+    {
+      "season": 2000.0,
+      "xg_last5_home": 0.0,
+      "xg_last5_away": 0.0,
+      "poss_last5_home": 0.0,
+      "poss_last5_away": 0.0,
+      "coverage_min_pct": 0.0
+    },
+    {
+      "season": 2001.0,
+      "xg_last5_home": 0.0,
+      "xg_last5_away": 0.0,
+      "poss_last5_home": 0.0,
+      "poss_last5_away": 0.0,
+      "coverage_min_pct": 0.0
+    },
+    {
+      "season": 2002.0,
+      "xg_last5_home": 0.0,
+      "xg_last5_away": 0.0,
+      "poss_last5_home": 0.0,
+      "poss_last5_away": 0.0,
+      "coverage_min_pct": 0.0
+    },
+    {
+      "season": 2003.0,
+      "xg_last5_home": 0.0,
+      "xg_last5_away": 0.0,
+      "poss_last5_home": 0.0,
+      "poss_last5_away": 0.0,
+      "coverage_min_pct": 0.0
+    },
+    {
+      "season": 2004.0,
+      "xg_last5_home": 0.0,
+      "xg_last5_away": 0.0,
+      "poss_last5_home": 0.0,
+      "poss_last5_away": 0.0,
+      "coverage_min_pct": 0.0
+    },
+    {
+      "season": 2005.0,
+      "xg_last5_home": 0.0,
+      "xg_last5_away": 0.0,
+      "poss_last5_home": 0.0,
+      "poss_last5_away": 0.0,
+      "coverage_min_pct": 0.0
+    },
+    {
+      "season": 2006.0,
+      "xg_last5_home": 0.0,
+      "xg_last5_away": 0.0,
+      "poss_last5_home": 0.0,
+      "poss_last5_away": 0.0,
+      "coverage_min_pct": 0.0
+    },
+    {
+      "season": 2007.0,
+      "xg_last5_home": 0.0,
+      "xg_last5_away": 0.0,
+      "poss_last5_home": 0.0,
+      "poss_last5_away": 0.0,
+      "coverage_min_pct": 0.0
+    },
+    {
+      "season": 2008.0,
+      "xg_last5_home": 0.0,
+      "xg_last5_away": 0.0,
+      "poss_last5_home": 0.0,
+      "poss_last5_away": 0.0,
+      "coverage_min_pct": 0.0
+    },
+    {
+      "season": 2009.0,
+      "xg_last5_home": 0.0,
+      "xg_last5_away": 0.0,
+      "poss_last5_home": 0.0,
+      "poss_last5_away": 0.0,
+      "coverage_min_pct": 0.0
+    },
+    {
+      "season": 2010.0,
+      "xg_last5_home": 0.0,
+      "xg_last5_away": 0.0,
+      "poss_last5_home": 0.0,
+      "poss_last5_away": 0.0,
+      "coverage_min_pct": 0.0
+    },
+    {
+      "season": 2011.0,
+      "xg_last5_home": 0.0,
+      "xg_last5_away": 0.0,
+      "poss_last5_home": 0.0,
+      "poss_last5_away": 0.0,
+      "coverage_min_pct": 0.0
+    },
+    {
+      "season": 2012.0,
+      "xg_last5_home": 0.0,
+      "xg_last5_away": 0.0,
+      "poss_last5_home": 0.0,
+      "poss_last5_away": 0.0,
+      "coverage_min_pct": 0.0
+    },
+    {
+      "season": 2013.0,
+      "xg_last5_home": 0.0,
+      "xg_last5_away": 0.0,
+      "poss_last5_home": 0.0,
+      "poss_last5_away": 0.0,
+      "coverage_min_pct": 0.0
+    },
+    {
+      "season": 2014.0,
+      "xg_last5_home": 0.0,
+      "xg_last5_away": 0.0,
+      "poss_last5_home": 0.0,
+      "poss_last5_away": 0.0,
+      "coverage_min_pct": 0.0
+    },
+    {
+      "season": 2015.0,
+      "xg_last5_home": 0.0,
+      "xg_last5_away": 0.0,
+      "poss_last5_home": 0.0,
+      "poss_last5_away": 0.0,
+      "coverage_min_pct": 0.0
+    },
+    {
+      "season": 2016.0,
+      "xg_last5_home": 0.0,
+      "xg_last5_away": 0.0,
+      "poss_last5_home": 0.0,
+      "poss_last5_away": 0.0,
+      "coverage_min_pct": 0.0
+    },
+    {
+      "season": 2017.0,
+      "xg_last5_home": 0.0,
+      "xg_last5_away": 0.0,
+      "poss_last5_home": 0.0,
+      "poss_last5_away": 0.0,
+      "coverage_min_pct": 0.0
+    },
+    {
+      "season": 2018.0,
+      "xg_last5_home": 48.6842105263,
+      "xg_last5_away": 47.3684210526,
+      "poss_last5_home": 48.6842105263,
+      "poss_last5_away": 47.3684210526,
+      "coverage_min_pct": 47.3684210526
+    },
+    {
+      "season": 2019.0,
+      "xg_last5_home": 91.0994764398,
+      "xg_last5_away": 90.5759162304,
+      "poss_last5_home": 91.0994764398,
+      "poss_last5_away": 90.5759162304,
+      "coverage_min_pct": 90.5759162304
+    },
+    {
+      "season": 2020.0,
+      "xg_last5_home": 97.1014492754,
+      "xg_last5_away": 94.2028985507,
+      "poss_last5_home": 97.1014492754,
+      "poss_last5_away": 94.2028985507,
+      "coverage_min_pct": 94.2028985507
+    },
+    {
+      "season": 2021.0,
+      "xg_last5_home": 97.1698113208,
+      "xg_last5_away": 94.8113207547,
+      "poss_last5_home": 97.1698113208,
+      "poss_last5_away": 94.8113207547,
+      "coverage_min_pct": 94.8113207547
+    },
+    {
+      "season": 2022.0,
+      "xg_last5_home": 96.4125560538,
+      "xg_last5_away": 95.5156950673,
+      "poss_last5_home": 96.4125560538,
+      "poss_last5_away": 95.5156950673,
+      "coverage_min_pct": 95.5156950673
+    },
+    {
+      "season": 2023.0,
+      "xg_last5_home": 96.875,
+      "xg_last5_away": 95.9821428571,
+      "poss_last5_home": 96.875,
+      "poss_last5_away": 95.9821428571,
+      "coverage_min_pct": 95.9821428571
+    },
+    {
+      "season": 2024.0,
+      "xg_last5_home": 96.8911917098,
+      "xg_last5_away": 95.8549222798,
+      "poss_last5_home": 96.8911917098,
+      "poss_last5_away": 95.8549222798,
+      "coverage_min_pct": 95.8549222798
+    },
+    {
+      "season": 2025.0,
+      "xg_last5_home": 81.8181818182,
+      "xg_last5_away": 100.0,
+      "poss_last5_home": 81.8181818182,
+      "poss_last5_away": 100.0,
+      "coverage_min_pct": 81.8181818182
+    }
+  ],
+  "xg_poss_coverage_by_season_filtered": [
+    {
+      "season": 2019.0,
+      "xg_last5_home": 91.0994764398,
+      "xg_last5_away": 90.5759162304,
+      "poss_last5_home": 91.0994764398,
+      "poss_last5_away": 90.5759162304,
+      "coverage_min_pct": 90.5759162304
+    },
+    {
+      "season": 2020.0,
+      "xg_last5_home": 97.1014492754,
+      "xg_last5_away": 94.2028985507,
+      "poss_last5_home": 97.1014492754,
+      "poss_last5_away": 94.2028985507,
+      "coverage_min_pct": 94.2028985507
+    },
+    {
+      "season": 2021.0,
+      "xg_last5_home": 97.1698113208,
+      "xg_last5_away": 94.8113207547,
+      "poss_last5_home": 97.1698113208,
+      "poss_last5_away": 94.8113207547,
+      "coverage_min_pct": 94.8113207547
+    },
+    {
+      "season": 2022.0,
+      "xg_last5_home": 96.4125560538,
+      "xg_last5_away": 95.5156950673,
+      "poss_last5_home": 96.4125560538,
+      "poss_last5_away": 95.5156950673,
+      "coverage_min_pct": 95.5156950673
+    },
+    {
+      "season": 2023.0,
+      "xg_last5_home": 96.875,
+      "xg_last5_away": 95.9821428571,
+      "poss_last5_home": 96.875,
+      "poss_last5_away": 95.9821428571,
+      "coverage_min_pct": 95.9821428571
+    },
+    {
+      "season": 2024.0,
+      "xg_last5_home": 96.8911917098,
+      "xg_last5_away": 95.8549222798,
+      "poss_last5_home": 96.8911917098,
+      "poss_last5_away": 95.8549222798,
+      "coverage_min_pct": 95.8549222798
+    },
+    {
+      "season": 2025.0,
+      "xg_last5_home": 81.8181818182,
+      "xg_last5_away": 100.0,
+      "poss_last5_home": 81.8181818182,
+      "poss_last5_away": 100.0,
+      "coverage_min_pct": 81.8181818182
+    }
+  ]
+}
