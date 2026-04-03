@@ -1,0 +1,37 @@
+{
+  "files.exclude": {
+    "**/__pycache__": true,
+    "**/.pytest_cache": true,
+    "**/.mypy_cache": true,
+    "**/.ruff_cache": true,
+    "**/.DS_Store": true,
+    "**/node_modules": true,
+    "data/out/**": true,
+    "out/roi/odds_snapshots/**": true,
+    "out/model_improvement/**": true,
+    "out_api.json": true,
+    "out.json": true
+  },
+  "search.exclude": {
+    "**/__pycache__": true,
+    "**/.pytest_cache": true,
+    "**/.mypy_cache": true,
+    "**/.ruff_cache": true,
+    "**/node_modules": true,
+    "data/out/**": true,
+    "out/roi/odds_snapshots/**": true,
+    "out/model_improvement/**": true
+  },
+  "files.watcherExclude": {
+    "**/__pycache__/**": true,
+    "**/.pytest_cache/**": true,
+    "**/.mypy_cache/**": true,
+    "**/.ruff_cache/**": true,
+    "**/node_modules/**": true,
+    "data/out/**": true,
+    "out/roi/odds_snapshots/**": true,
+    "out/model_improvement/**": true
+  },
+  "explorer.compactFolders": true,
+  "explorer.sortOrder": "type"
+}

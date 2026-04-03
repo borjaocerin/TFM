@@ -2,6 +2,8 @@
 
 Guia detallada del monorepo para prediccion 1X2 de LaLiga con probabilidades calibradas, comparacion contra cuotas de mercado y demo web profesional.
 
+Si quieres una vista corta para no perderte entre carpetas, mira `docs/NAVEGACION_RAPIDA.md`.
+
 ## 1. Vision y objetivo
 
 Este proyecto implementa un flujo completo de analitica aplicada a futbol para un TFM:
