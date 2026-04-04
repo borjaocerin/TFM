@@ -2,7 +2,7 @@ services:
   api:
     build:
       context: ..
-      dockerfile: backend/Dockerfile
+      dockerfile: web/backend/Dockerfile
     container_name: tfm_laliga_api
     ports:
       - "8000:8000"
@@ -18,12 +18,13 @@ services:
       - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:5173,http://127.0.0.1:5173}
     volumes:
       - ../data:/app/data
-      - ../backend/app/models/store:/app/backend/app/models/store
+      - ../web/backend/app/models/store:/app/backend/app/models/store
 
   frontend:
+    profiles: ["frontend"]
     build:
       context: ..
-      dockerfile: frontend/Dockerfile
+      dockerfile: web/frontend/Dockerfile
     container_name: tfm_laliga_frontend
     ports:
       - "5173:5173"
@@ -38,12 +39,12 @@ services:
   etl:
     build:
       context: ..
-      dockerfile: etl/Dockerfile
+      dockerfile: modelos/etl/Dockerfile
     container_name: tfm_laliga_etl
     env_file:
       - ../.env
     volumes:
       - ../data:/app/data
-      - ../etl:/app/etl
-      - ../backend:/app/backend
+      - ../modelos/etl:/app/etl
+      - ../web/backend:/app/backend
     command: ["--help"]
