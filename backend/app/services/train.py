@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-import json
 from pathlib import Path
 from typing import Any
 
@@ -61,15 +60,6 @@ LEAKAGE_COLUMNS = {
     "goal_diff",
 }
 
-LOWER_IS_BETTER_METRICS = {"log_loss", "brier", "ece"}
-
-XG_POSS_COVERAGE_COLUMNS = [
-    "xg_last5_home",
-    "xg_last5_away",
-    "poss_last5_home",
-    "poss_last5_away",
-]
-
 
 def _resolve_dataset_path(dataset_path: str | None) -> Path:
     if dataset_path:
@@ -108,7 +98,7 @@ def _resolve_dataset_path(dataset_path: str | None) -> Path:
     return default_model_path
 
 
-def _load_training_frame(dataset_path: Path) -> pd.DataFrame:
+def _load_training_data(dataset_path: Path) -> tuple[pd.DataFrame, pd.Series, list[str]]:
     if not dataset_path.exists():
         raise FileNotFoundError(f"No existe dataset de entrenamiento en {dataset_path}")
 
@@ -122,115 +112,6 @@ def _load_training_frame(dataset_path: Path) -> pd.DataFrame:
     df = df.sort_values("date_dt")
     df = df.dropna(subset=["target"]).copy()
     df["target"] = df["target"].astype(int)
-    return df
-
-
-def _season_coverage(
-    df: pd.DataFrame,
-    columns: list[str],
-) -> pd.DataFrame:
-    available_cols = [column for column in columns if column in df.columns]
-    if "season" not in df.columns or not available_cols:
-        return pd.DataFrame()
-
-    working = df.copy()
-    working["season"] = pd.to_numeric(working["season"], errors="coerce")
-    working = working.dropna(subset=["season"])
-    if working.empty:
-        return pd.DataFrame()
-
-    coverage = (
-        working.groupby("season")[available_cols]
-        .apply(lambda frame: frame.notna().mean() * 100.0)
-        .reset_index()
-        .sort_values("season")
-        .reset_index(drop=True)
-    )
-    coverage["coverage_min_pct"] = coverage[available_cols].min(axis=1)
-    return coverage
-
-
-def _apply_training_filters(df: pd.DataFrame, request: TrainRequest) -> tuple[pd.DataFrame, dict[str, Any]]:
-    out = df.copy()
-    info: dict[str, Any] = {
-        "rows_before": int(len(df)),
-        "rows_after": int(len(df)),
-        "min_season": request.min_season,
-        "xg_poss_min_coverage_pct": request.xg_poss_min_coverage_pct,
-        "seasons_selected": [],
-    }
-
-    out["season"] = pd.to_numeric(out.get("season"), errors="coerce")
-
-    if request.min_season is not None:
-        out = out[out["season"] >= float(request.min_season)]
-
-    if request.xg_poss_min_coverage_pct is not None:
-        coverage = _season_coverage(out, XG_POSS_COVERAGE_COLUMNS)
-        if coverage.empty:
-            raise ValueError(
-                "No se puede aplicar filtro de cobertura xG/posesion: faltan columnas o temporadas validas"
-            )
-        selected = coverage[
-            coverage["coverage_min_pct"] >= float(request.xg_poss_min_coverage_pct)
-        ]["season"].tolist()
-        if not selected:
-            raise ValueError(
-                "Ninguna temporada cumple el umbral de cobertura xG/posesion solicitado"
-            )
-        out = out[out["season"].isin(selected)]
-        info["seasons_selected"] = [float(value) for value in sorted(selected)]
-    else:
-        seasons = sorted(out["season"].dropna().unique().tolist())
-        info["seasons_selected"] = [float(value) for value in seasons]
-
-    info["rows_after"] = int(len(out))
-    if out.empty:
-        raise ValueError("Sin filas tras aplicar filtros de temporadas/cobertura")
-
-    return out, info
-
-
-def _write_missing_eda_report(
-    df_raw: pd.DataFrame,
-    df_filtered: pd.DataFrame,
-    dataset_path: Path,
-    filter_info: dict[str, Any],
-) -> Path:
-    settings.output_dir.mkdir(parents=True, exist_ok=True)
-    report_path = settings.output_dir / "eda_missing_report.json"
-
-    raw_missing = (df_raw.isna().mean() * 100.0).sort_values(ascending=False)
-    filtered_missing = (df_filtered.isna().mean() * 100.0).sort_values(ascending=False)
-
-    raw_cov = _season_coverage(df_raw, XG_POSS_COVERAGE_COLUMNS)
-    filt_cov = _season_coverage(df_filtered, XG_POSS_COVERAGE_COLUMNS)
-
-    def _records(frame: pd.DataFrame) -> list[dict[str, Any]]:
-        if frame.empty:
-            return []
-        return json.loads(frame.to_json(orient="records"))
-
-    payload: dict[str, Any] = {
-        "dataset_path": str(dataset_path),
-        "created_at_utc": datetime.now(timezone.utc).isoformat(),
-        "rows_raw": int(len(df_raw)),
-        "rows_filtered": int(len(df_filtered)),
-        "columns": int(len(df_raw.columns)),
-        "filters": filter_info,
-        "top_missing_pct_raw": {str(k): float(v) for k, v in raw_missing.head(25).to_dict().items()},
-        "top_missing_pct_filtered": {
-            str(k): float(v) for k, v in filtered_missing.head(25).to_dict().items()
-        },
-        "xg_poss_coverage_by_season_raw": _records(raw_cov),
-        "xg_poss_coverage_by_season_filtered": _records(filt_cov),
-    }
-
-    report_path.write_text(json.dumps(payload, indent=2, ensure_ascii=True), encoding="utf-8")
-    return report_path
-
-
-def _select_training_data(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.Series, list[str]]:
 
     excluded = {
         "date",
@@ -263,7 +144,6 @@ def _select_training_data(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.Series, li
 def _candidate_estimators(use_xgb: bool, use_catboost: bool) -> dict[str, Any]:
     estimators: dict[str, Any] = {
         "logreg": LogisticRegression(max_iter=2000),
-        "logreg_balanced": LogisticRegression(max_iter=2000, class_weight="balanced"),
         "random_forest": RandomForestClassifier(
             n_estimators=400,
             random_state=42,
@@ -277,12 +157,6 @@ def _candidate_estimators(use_xgb: bool, use_catboost: bool) -> dict[str, Any]:
             min_samples_leaf=2,
             n_jobs=-1,
             class_weight="balanced_subsample",
-        ),
-        "hist_gb": HistGradientBoostingClassifier(
-            learning_rate=0.05,
-            max_depth=6,
-            max_iter=500,
-            random_state=42,
         ),
     }
     if use_xgb and XGB_AVAILABLE:
@@ -314,7 +188,7 @@ def _candidate_estimators(use_xgb: bool, use_catboost: bool) -> dict[str, Any]:
 
 
 def _build_pipeline(name: str, estimator: Any) -> Pipeline:
-    if name in {"logreg", "logreg_balanced"}:
+    if name == "logreg":
         return Pipeline(
             steps=[
                 ("imputer", SimpleImputer(strategy="median")),
@@ -323,35 +197,6 @@ def _build_pipeline(name: str, estimator: Any) -> Pipeline:
             ]
         )
     return Pipeline(steps=[("imputer", SimpleImputer(strategy="median")), ("model", estimator)])
-
-
-def _sort_leaderboard(
-    leaderboard: list[dict[str, Any]],
-    selection_metric: str,
-) -> list[dict[str, Any]]:
-    if not leaderboard:
-        return leaderboard
-
-    if selection_metric in LOWER_IS_BETTER_METRICS:
-        return sorted(
-            leaderboard,
-            key=lambda item: (
-                float(item.get(selection_metric, np.inf)),
-                -float(item.get("accuracy", 0.0)),
-                -float(item.get("f1_macro", 0.0)),
-                float(item.get("brier", np.inf)),
-            ),
-        )
-
-    return sorted(
-        leaderboard,
-        key=lambda item: (
-            -float(item.get(selection_metric, -np.inf)),
-            float(item.get("log_loss", np.inf)),
-            -float(item.get("f1_macro", 0.0)),
-            float(item.get("brier", np.inf)),
-        ),
-    )
 
 
 def _cross_val_metrics(X: pd.DataFrame, y: pd.Series, model: Pipeline) -> dict[str, float]:
@@ -408,7 +253,6 @@ def _save_reliability_plot(y_true: np.ndarray, y_prob: np.ndarray) -> str:
 def _write_metrics_report(
     trained_at: str,
     best_model_name: str,
-    selection_metric: str,
     cv_metrics: dict[str, float],
     leaderboard: list[dict[str, Any]],
     dataset_path: Path,
@@ -423,8 +267,6 @@ def _write_metrics_report(
         f"trained_at_utc: {trained_at}",
         f"dataset_path: {dataset_path}",
         f"best_model: {best_model_name}",
-        f"selection_metric: {selection_metric}",
-        f"selection_direction: {'min' if selection_metric in LOWER_IS_BETTER_METRICS else 'max'}",
         "",
         "GLOBAL METRICS (TIME-SPLIT CV)",
         f"log_loss: {cv_metrics.get('log_loss', 0.0):.6f}",
@@ -466,10 +308,7 @@ def _write_metrics_report(
 
 def train_and_calibrate(request: TrainRequest) -> dict[str, Any]:
     dataset_path = _resolve_dataset_path(request.dataset_path)
-    df_raw = _load_training_frame(dataset_path)
-    df_filtered, filter_info = _apply_training_filters(df_raw, request)
-    X, y, feature_columns = _select_training_data(df_filtered)
-    eda_report_path = _write_missing_eda_report(df_raw, df_filtered, dataset_path, filter_info)
+    X, y, feature_columns = _load_training_data(dataset_path)
 
     estimators = _candidate_estimators(request.use_xgb, request.use_catboost)
     leaderboard: list[dict[str, Any]] = []
@@ -479,7 +318,10 @@ def train_and_calibrate(request: TrainRequest) -> dict[str, Any]:
         metrics = _cross_val_metrics(X, y, pipeline)
         leaderboard.append({"model": model_name, **metrics})
 
-    leaderboard = _sort_leaderboard(leaderboard, request.selection_metric)
+    leaderboard = sorted(
+        leaderboard,
+        key=lambda item: (-item["accuracy"], item["log_loss"], -item["f1_macro"], item["brier"]),
+    )
     best_model_name = str(leaderboard[0]["model"])
     best_cv_metrics = {
         key: float(value)
@@ -500,7 +342,6 @@ def train_and_calibrate(request: TrainRequest) -> dict[str, Any]:
     metrics_report_path = _write_metrics_report(
         trained_at=trained_at,
         best_model_name=best_model_name,
-        selection_metric=request.selection_metric,
         cv_metrics=best_cv_metrics,
         leaderboard=leaderboard,
         dataset_path=dataset_path,
@@ -513,18 +354,12 @@ def train_and_calibrate(request: TrainRequest) -> dict[str, Any]:
         "feature_columns": feature_columns,
         "rows_trained": int(len(X)),
         "best_model": best_model_name,
-        "selection_metric": request.selection_metric,
-        "selection_direction": "min"
-        if request.selection_metric in LOWER_IS_BETTER_METRICS
-        else "max",
         "calibration": request.calibration,
         "metrics": best_cv_metrics,
         "fit_metrics": fit_metrics,
         "leaderboard": leaderboard,
         "reliability_plot": reliability_plot,
         "metrics_report_path": str(metrics_report_path),
-        "eda_missing_report_path": str(eda_report_path),
-        "training_filters": filter_info,
     }
     payload = {
         "model": calibrated,
@@ -542,8 +377,6 @@ def train_and_calibrate(request: TrainRequest) -> dict[str, Any]:
         "metadata_path": str(metadata_path),
         "reliability_plot": reliability_plot,
         "metrics_report_path": str(metrics_report_path),
-        "eda_missing_report_path": str(eda_report_path),
-        "selection_metric": request.selection_metric,
     }
 
 

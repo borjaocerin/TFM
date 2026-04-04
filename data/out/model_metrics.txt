@@ -1,28 +1,24 @@
 MODEL METRICS REPORT
 ====================
-trained_at_utc: 2026-03-27T09:21:23.815151+00:00
+trained_at_utc: 2026-03-23T09:21:42.763644+00:00
 dataset_path: C:\Users\borja.ocerinjauregui\Desktop\TFM\TFM\data\out\laliga_enriched_model.csv
-best_model: random_forest
-selection_metric: log_loss
-selection_direction: min
+best_model: logreg
 
 GLOBAL METRICS (TIME-SPLIT CV)
-log_loss: 0.993963
-brier: 0.591327
-ece: 0.028749
-accuracy: 0.514286
-f1_macro: 0.434432
+log_loss: 1.015463
+brier: 0.605309
+ece: 0.024577
+accuracy: 0.511443
+f1_macro: 0.368074
 
 LEADERBOARD
 
 FIT METRICS (IN-SAMPLE, SOLO REFERENCIA)
-fit_log_loss: 0.628812
-fit_brier: 0.337812
-fit_ece: 0.263656
-fit_accuracy: 0.884219
-fit_f1_macro: 0.879686
- - random_forest: log_loss=0.993963, accuracy=0.514286, brier=0.591327, ece=0.028749, f1_macro=0.434432
- - extra_trees: log_loss=1.001813, accuracy=0.504762, brier=0.596005, ece=0.044604, f1_macro=0.443251
- - logreg: log_loss=1.107057, accuracy=0.455238, brier=0.647581, ece=0.094755, f1_macro=0.382241
- - logreg_balanced: log_loss=1.146058, accuracy=0.445714, brier=0.670281, ece=0.120902, f1_macro=0.419520
- - hist_gb: log_loss=2.395537, accuracy=0.459048, brier=0.881572, ece=0.268157, f1_macro=0.402825
+fit_log_loss: 1.001333
+fit_brier: 0.598133
+fit_ece: 0.017514
+fit_accuracy: 0.514398
+fit_f1_macro: 0.339346
+ - logreg: log_loss=1.015463, accuracy=0.511443, brier=0.605309, ece=0.024577, f1_macro=0.368074
+ - random_forest: log_loss=1.014475, accuracy=0.511194, brier=0.605737, ece=0.020042, f1_macro=0.372117
+ - extra_trees: log_loss=1.027187, accuracy=0.498259, brier=0.614991, ece=0.052963, f1_macro=0.414365
