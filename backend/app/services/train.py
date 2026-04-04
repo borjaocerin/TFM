@@ -111,6 +111,12 @@ def _load_training_data(dataset_path: Path) -> tuple[pd.DataFrame, pd.Series, li
     df["date_dt"] = pd.to_datetime(df.get("date"), errors="coerce")
     df = df.sort_values("date_dt")
     df = df.dropna(subset=["target"]).copy()
+    target_upper = df["target"].astype(str).str.upper().str.strip()
+    target_map = {"H": 0, "D": 1, "A": 2, "0": 0, "1": 1, "2": 2}
+    normalized_target = target_upper.map(target_map)
+    numeric_target = pd.to_numeric(df["target"], errors="coerce")
+    df["target"] = normalized_target.fillna(numeric_target)
+    df = df.dropna(subset=["target"]).copy()
     df["target"] = df["target"].astype(int)
 
     excluded = {

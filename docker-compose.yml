@@ -25,7 +25,6 @@ services:
       - ./web/backend/app/models/store:/app/backend/app/models/store
 
   frontend:
-    profiles: ["frontend"]
     build:
       context: .
       dockerfile: web/frontend/Dockerfile

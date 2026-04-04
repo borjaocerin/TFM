@@ -1,0 +1,95 @@
+{
+  "trained_at": "2026-04-04T22:29:14.755962+00:00",
+  "dataset_path": "/app/data/out/laliga_enriched_all.csv",
+  "feature_columns": [
+    "round",
+    "home_team_id",
+    "away_team_id",
+    "odds_avg_h",
+    "odds_avg_d",
+    "odds_avg_a",
+    "odds_close_h",
+    "odds_close_d",
+    "odds_close_a",
+    "elo_diff",
+    "xg_last5_home",
+    "xg_last5_away",
+    "xg_last5_diff",
+    "xg_last10_home",
+    "xg_last10_away",
+    "xg_last10_diff"
+  ],
+  "rows_trained": 6,
+  "best_model": "logreg",
+  "selection_metric": "log_loss",
+  "selection_direction": "min",
+  "calibration": "none",
+  "metrics": {
+    "log_loss": 0.2850189723071733,
+    "brier": 0.20862487370583865,
+    "ece": 0.1903975399709916,
+    "accuracy": 0.75,
+    "f1_macro": 0.7333333333333334
+  },
+  "fit_metrics": {
+    "log_loss": 0.1790392085482709,
+    "brier": 0.06369003305127502,
+    "ece": 0.1022545731150059,
+    "accuracy": 1.0,
+    "f1_macro": 1.0
+  },
+  "leaderboard": [
+    {
+      "model": "logreg",
+      "log_loss": 0.2850189723071733,
+      "brier": 0.20862487370583865,
+      "ece": 0.1903975399709916,
+      "accuracy": 0.75,
+      "f1_macro": 0.7333333333333334
+    },
+    {
+      "model": "logreg_balanced",
+      "log_loss": 0.3876480985459547,
+      "brier": 0.3009545743455139,
+      "ece": 0.20956973421348832,
+      "accuracy": 0.75,
+      "f1_macro": 0.7333333333333334
+    },
+    {
+      "model": "extra_trees",
+      "log_loss": 0.7506612500947376,
+      "brier": 0.5513777777777777,
+      "ece": 0.36333333333333334,
+      "accuracy": 0.75,
+      "f1_macro": 0.7333333333333334
+    },
+    {
+      "model": "random_forest",
+      "log_loss": 0.7566322273021158,
+      "brier": 0.5584113281249999,
+      "ece": 0.36406249999999996,
+      "accuracy": 0.25,
+      "f1_macro": 0.2
+    },
+    {
+      "model": "hist_gb",
+      "log_loss": 0.7650676986728906,
+      "brier": 0.5625,
+      "ece": 0.375,
+      "accuracy": 0.75,
+      "f1_macro": 0.42857142857142855
+    }
+  ],
+  "reliability_plot": "/static/reliability_latest.png",
+  "metrics_report_path": "/app/data/out/model_metrics.txt",
+  "eda_missing_report_path": "/app/data/out/eda_missing_report.json",
+  "training_filters": {
+    "rows_before": 6,
+    "rows_after": 6,
+    "min_season": null,
+    "xg_poss_min_coverage_pct": null,
+    "seasons_selected": [
+      2025.0
+    ]
+  }
+}

@@ -24,8 +24,15 @@ TARGET_VALUE_MAP = {
 
 
 def multiclass_brier_score(y_true: np.ndarray, y_prob: np.ndarray, n_classes: int = 3) -> float:
-    one_hot = np.eye(n_classes)[y_true]
-    return float(np.mean(np.sum((y_prob - one_hot) ** 2, axis=1)))
+    inferred_classes = int(y_prob.shape[1]) if y_prob.ndim == 2 else int(n_classes)
+    classes = inferred_classes if inferred_classes > 0 else int(n_classes)
+    valid_mask = (y_true >= 0) & (y_true < classes)
+    if not np.any(valid_mask):
+        return float("nan")
+    filtered_true = y_true[valid_mask].astype(int)
+    filtered_prob = y_prob[valid_mask]
+    one_hot = np.eye(classes)[filtered_true]
+    return float(np.mean(np.sum((filtered_prob - one_hot) ** 2, axis=1)))
 
 
 def expected_calibration_error(y_true: np.ndarray, y_prob: np.ndarray, n_bins: int = 10) -> float:
@@ -50,8 +57,24 @@ def expected_calibration_error(y_true: np.ndarray, y_prob: np.ndarray, n_bins: i
 
 def compute_classification_metrics(y_true: np.ndarray, y_prob: np.ndarray) -> dict[str, float]:
     y_pred = np.argmax(y_prob, axis=1)
+    try:
+        safe_log_loss = float(log_loss(y_true, y_prob, labels=[0, 1, 2]))
+    except ValueError:
+        # Fallback when model was trained with fewer observed classes in a split.
+        n_prob_classes = int(y_prob.shape[1])
+        valid_mask = (y_true >= 0) & (y_true < n_prob_classes)
+        if np.any(valid_mask):
+            safe_log_loss = float(
+                log_loss(
+                    y_true[valid_mask],
+                    y_prob[valid_mask],
+                    labels=list(range(n_prob_classes)),
+                )
+            )
+        else:
+            safe_log_loss = float("nan")
     return {
-        "log_loss": float(log_loss(y_true, y_prob, labels=[0, 1, 2])),
+        "log_loss": safe_log_loss,
         "brier": multiclass_brier_score(y_true, y_prob),
         "ece": expected_calibration_error(y_true, y_prob),
         "accuracy": float(accuracy_score(y_true, y_pred)),
@@ -172,8 +195,14 @@ def compare_market_vs_model(
             y_true = valid["target_int"].astype(int).to_numpy()
             model_prob = valid[["p_H", "p_D", "p_A"]].astype(float).to_numpy()
             market_prob = valid[["mkt_p_H", "mkt_p_D", "mkt_p_A"]].astype(float).to_numpy()
-            metrics["model_log_loss"] = float(log_loss(y_true, model_prob, labels=[0, 1, 2]))
-            metrics["market_log_loss"] = float(log_loss(y_true, market_prob, labels=[0, 1, 2]))
+            try:
+                metrics["model_log_loss"] = float(log_loss(y_true, model_prob, labels=[0, 1, 2]))
+            except ValueError:
+                metrics["model_log_loss"] = float(log_loss(y_true, model_prob))
+            try:
+                metrics["market_log_loss"] = float(log_loss(y_true, market_prob, labels=[0, 1, 2]))
+            except ValueError:
+                metrics["market_log_loss"] = float(log_loss(y_true, market_prob))
             metrics["model_brier"] = multiclass_brier_score(y_true, model_prob)
             metrics["market_brier"] = multiclass_brier_score(y_true, market_prob)
 

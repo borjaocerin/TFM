@@ -21,7 +21,17 @@ export function OddsPage() {
       setResult(response);
       setToast(`Comparativa completada. Value bets: ${response.value_bets.length}`);
     } catch (error) {
-      setToast(`Error en comparativa: ${String(error)}`);
+      let errorMsg = "Error desconocido";
+      if (error instanceof Error) {
+        errorMsg = error.message;
+        if ("response" in error && error.response && typeof error.response === "object" && "data" in error.response) {
+          const data = error.response.data as Record<string, unknown>;
+          if ("detail" in data) {
+            errorMsg = String(data.detail);
+          }
+        }
+      }
+      setToast(`Error en comparativa: ${errorMsg}`);
     } finally {
       setLoading(false);
     }

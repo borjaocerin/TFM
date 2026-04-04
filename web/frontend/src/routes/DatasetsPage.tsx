@@ -51,7 +51,17 @@ export function DatasetsPage() {
         );
       }
     } catch (error) {
-      setToast(`Error cargando partidos: ${String(error)}`);
+      let errorMsg = "Error desconocido";
+      if (error instanceof Error) {
+        errorMsg = error.message;
+        if ("response" in error && error.response && typeof error.response === "object" && "data" in error.response) {
+          const data = error.response.data as Record<string, unknown>;
+          if ("detail" in data) {
+            errorMsg = String(data.detail);
+          }
+        }
+      }
+      setToast(`Error cargando partidos: ${errorMsg}`);
     }
   };
 

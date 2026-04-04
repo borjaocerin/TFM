@@ -25,7 +25,17 @@ export function PredictPage() {
       setFeaturesOutputPath(response.output_path);
       setToast(`Features OK: ${response.rows_total} fixtures enriquecidos`);
     } catch (error) {
-      setToast(`Error creando features: ${String(error)}`);
+      let errorMsg = "Error desconocido";
+      if (error instanceof Error) {
+        errorMsg = error.message;
+        if ("response" in error && error.response && typeof error.response === "object" && "data" in error.response) {
+          const data = error.response.data as Record<string, unknown>;
+          if ("detail" in data) {
+            errorMsg = String(data.detail);
+          }
+        }
+      }
+      setToast(`Error creando features: ${errorMsg}`);
     } finally {
       setBuildLoading(false);
     }
@@ -38,7 +48,17 @@ export function PredictPage() {
       setPredictionResult(response);
       setToast(`Prediccion OK: ${response.rows} partidos`);
     } catch (error) {
-      setToast(`Error en prediccion: ${String(error)}`);
+      let errorMsg = "Error desconocido";
+      if (error instanceof Error) {
+        errorMsg = error.message;
+        if ("response" in error && error.response && typeof error.response === "object" && "data" in error.response) {
+          const data = error.response.data as Record<string, unknown>;
+          if ("detail" in data) {
+            errorMsg = String(data.detail);
+          }
+        }
+      }
+      setToast(`Error en prediccion: ${errorMsg}`);
     } finally {
       setPredictLoading(false);
     }

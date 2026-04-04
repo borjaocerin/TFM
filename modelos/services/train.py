@@ -82,6 +82,12 @@ def _resolve_dataset_path(dataset_path: str | None) -> Path:
     if default_model_path.exists():
         return default_model_path
 
+    # Fallback: if full enriched dataset already exists, use it directly.
+    # This avoids forcing a fresh ingest when football-data is not mounted.
+    default_all_path = settings.output_dir / "laliga_enriched_all.csv"
+    if default_all_path.exists():
+        return default_all_path
+
     historical_csv = settings.data_dir / "historical" / "laliga_merged_matches.csv"
     football_data_dir = settings.data_dir / "football-data"
     elo_csv = settings.data_dir / "elo" / "ELO_RATINGS.csv"
@@ -120,6 +126,12 @@ def _load_training_frame(dataset_path: Path) -> pd.DataFrame:
 
     df["date_dt"] = pd.to_datetime(df.get("date"), errors="coerce")
     df = df.sort_values("date_dt")
+    df = df.dropna(subset=["target"]).copy()
+    target_upper = df["target"].astype(str).str.upper().str.strip()
+    target_map = {"H": 0, "D": 1, "A": 2, "0": 0, "1": 1, "2": 2}
+    normalized_target = target_upper.map(target_map)
+    numeric_target = pd.to_numeric(df["target"], errors="coerce")
+    df["target"] = normalized_target.fillna(numeric_target)
     df = df.dropna(subset=["target"]).copy()
     df["target"] = df["target"].astype(int)
     return df
@@ -489,8 +501,21 @@ def train_and_calibrate(request: TrainRequest) -> dict[str, Any]:
 
     best_pipeline = _build_pipeline(best_model_name, estimators[best_model_name])
     method = "sigmoid" if request.calibration == "platt" else "isotonic"
-    calibrated = CalibratedClassifierCV(estimator=best_pipeline, method=method, cv=3)
-    calibrated.fit(X, y)
+    class_counts = y.value_counts(dropna=False)
+    min_class_count = int(class_counts.min()) if not class_counts.empty else 0
+
+    if min_class_count >= 3:
+        calibrated = CalibratedClassifierCV(estimator=best_pipeline, method=method, cv=3)
+        calibrated.fit(X, y)
+        effective_calibration = request.calibration
+    elif min_class_count >= 2:
+        calibrated = CalibratedClassifierCV(estimator=best_pipeline, method=method, cv=2)
+        calibrated.fit(X, y)
+        effective_calibration = request.calibration
+    else:
+        # Not enough samples per class for calibration CV; keep uncalibrated model.
+        calibrated = best_pipeline.fit(X, y)
+        effective_calibration = "none"
 
     fit_prob = calibrated.predict_proba(X)
     fit_metrics = compute_classification_metrics(y.to_numpy(), fit_prob)
@@ -517,7 +542,7 @@ def train_and_calibrate(request: TrainRequest) -> dict[str, Any]:
         "selection_direction": "min"
         if request.selection_metric in LOWER_IS_BETTER_METRICS
         else "max",
-        "calibration": request.calibration,
+        "calibration": effective_calibration,
         "metrics": best_cv_metrics,
         "fit_metrics": fit_metrics,
         "leaderboard": leaderboard,

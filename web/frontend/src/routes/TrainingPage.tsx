@@ -28,7 +28,17 @@ export function TrainingPage() {
       });
       setToast(`Modelo entrenado: ${response.best_model}`);
     } catch (error) {
-      setToast(`Error al entrenar: ${String(error)}`);
+      let errorMsg = "Error desconocido";
+      if (error instanceof Error) {
+        errorMsg = error.message;
+        if ("response" in error && error.response && typeof error.response === "object" && "data" in error.response) {
+          const data = error.response.data as Record<string, unknown>;
+          if ("detail" in data) {
+            errorMsg = String(data.detail);
+          }
+        }
+      }
+      setToast(`Error al entrenar: ${errorMsg}`);
     } finally {
       setLoading(false);
     }

@@ -87,7 +87,18 @@ export function MatchPredictionPage() {
           return;
         }
 
-        const message = `Error al predecir: ${String(loadError)}`;
+        let errorMsg = "Error desconocido";
+        if (loadError instanceof Error) {
+          errorMsg = loadError.message;
+          if ("response" in loadError && loadError.response && typeof loadError.response === "object" && "data" in loadError.response) {
+            const data = loadError.response.data as Record<string, unknown>;
+            if ("detail" in data) {
+              errorMsg = String(data.detail);
+            }
+          }
+        }
+        
+        const message = `Error al predecir: ${errorMsg}`;
         setError(message);
         setToast(message);
       } finally {

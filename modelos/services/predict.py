@@ -1221,8 +1221,9 @@ def list_upcoming_fixture_options_with_value(value_threshold: float = 0.02) -> d
 
 def _ensure_default_enriched_historical() -> Path:
     output_all = settings.output_dir / "laliga_enriched_all.csv"
-    output_model = settings.output_dir / "laliga_enriched_model.csv"
-    if output_all.exists() and output_model.exists():
+    # For prediction flows we only need the enriched historical frame.
+    # Do not force a full re-ingest if laliga_enriched_all.csv is already present.
+    if output_all.exists():
         return output_all
 
     defaults = _default_source_paths()
@@ -1278,7 +1279,8 @@ def predict_matches(request: PredictRequest) -> dict[str, Any]:
         from app.schemas.model import TrainRequest
         from modelos.services.train import train_and_calibrate
 
-        train_and_calibrate(TrainRequest())
+        # Auto-training fallback: prefer robust baseline models for cold start.
+        train_and_calibrate(TrainRequest(use_xgb=False, use_catboost=False))
         payload, _ = store.load()
 
     model = payload["model"]
@@ -1292,11 +1294,24 @@ def predict_matches(request: PredictRequest) -> dict[str, Any]:
     model_input = model_input.apply(pd.to_numeric, errors="coerce").astype(float)
 
     proba = model.predict_proba(model_input)
+    classes = getattr(model, "classes_", np.array([0, 1, 2]))
+
+    proba_h = np.zeros(len(model_input), dtype=float)
+    proba_d = np.zeros(len(model_input), dtype=float)
+    proba_a = np.zeros(len(model_input), dtype=float)
+
+    class_to_col = {int(cls): idx for idx, cls in enumerate(np.asarray(classes).tolist())}
+    if 0 in class_to_col:
+        proba_h = proba[:, class_to_col[0]]
+    if 1 in class_to_col:
+        proba_d = proba[:, class_to_col[1]]
+    if 2 in class_to_col:
+        proba_a = proba[:, class_to_col[2]]
 
     output = features_df.copy()
-    output["p_H"] = proba[:, 0]
-    output["p_D"] = proba[:, 1]
-    output["p_A"] = proba[:, 2]
+    output["p_H"] = proba_h
+    output["p_D"] = proba_d
+    output["p_A"] = proba_a
 
     settings.output_dir.mkdir(parents=True, exist_ok=True)
     output_csv = settings.output_dir / "predictions.csv"

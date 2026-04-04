@@ -1,0 +1,84 @@
+{
+  "dataset_path": "/app/data/out/laliga_enriched_all.csv",
+  "created_at_utc": "2026-04-04T22:29:11.605169+00:00",
+  "rows_raw": 6,
+  "rows_filtered": 6,
+  "columns": 24,
+  "filters": {
+    "rows_before": 6,
+    "rows_after": 6,
+    "min_season": null,
+    "xg_poss_min_coverage_pct": null,
+    "seasons_selected": [
+      2025.0
+    ]
+  },
+  "top_missing_pct_raw": {
+    "date": 0.0,
+    "season": 0.0,
+    "season_label": 0.0,
+    "round": 0.0,
+    "home_team": 0.0,
+    "away_team": 0.0,
+    "home_team_id": 0.0,
+    "away_team_id": 0.0,
+    "target": 0.0,
+    "result": 0.0,
+    "odds_avg_h": 0.0,
+    "odds_avg_d": 0.0,
+    "odds_avg_a": 0.0,
+    "odds_close_h": 0.0,
+    "odds_close_d": 0.0,
+    "odds_close_a": 0.0,
+    "elo_diff": 0.0,
+    "xg_last5_home": 0.0,
+    "xg_last5_away": 0.0,
+    "xg_last5_diff": 0.0,
+    "xg_last10_home": 0.0,
+    "xg_last10_away": 0.0,
+    "xg_last10_diff": 0.0,
+    "date_dt": 0.0
+  },
+  "top_missing_pct_filtered": {
+    "date": 0.0,
+    "season": 0.0,
+    "season_label": 0.0,
+    "round": 0.0,
+    "home_team": 0.0,
+    "away_team": 0.0,
+    "home_team_id": 0.0,
+    "away_team_id": 0.0,
+    "target": 0.0,
+    "result": 0.0,
+    "odds_avg_h": 0.0,
+    "odds_avg_d": 0.0,
+    "odds_avg_a": 0.0,
+    "odds_close_h": 0.0,
+    "odds_close_d": 0.0,
+    "odds_close_a": 0.0,
+    "elo_diff": 0.0,
+    "xg_last5_home": 0.0,
+    "xg_last5_away": 0.0,
+    "xg_last5_diff": 0.0,
+    "xg_last10_home": 0.0,
+    "xg_last10_away": 0.0,
+    "xg_last10_diff": 0.0,
+    "date_dt": 0.0
+  },
+  "xg_poss_coverage_by_season_raw": [
+    {
+      "season": 2025,
+      "xg_last5_home": 100.0,
+      "xg_last5_away": 100.0,
+      "coverage_min_pct": 100.0
+    }
+  ],
+  "xg_poss_coverage_by_season_filtered": [
+    {
+      "season": 2025,
+      "xg_last5_home": 100.0,
+      "xg_last5_away": 100.0,
+      "coverage_min_pct": 100.0
+    }
+  ]
+}

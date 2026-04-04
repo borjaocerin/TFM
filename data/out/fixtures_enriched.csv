@@ -1,0 +1,6 @@
+date,home_team,away_team,home_team_id,away_team_id,elo_diff,xg_last5_diff,xg_last10_diff,odds_avg_h,odds_avg_d,odds_avg_a,odds_close_h,odds_close_d,odds_close_a
+2026-04-10,Real Madrid,Barcelona,541,206,85.5,0.45,-0.15,1.50,3.80,5.50,1.48,3.85,5.75
+2026-04-11,Atletico Madrid,Valencia,204,105,62.3,0.22,-0.08,2.10,3.40,3.50,2.15,3.35,3.45
+2026-04-12,Real Sociedad,Athletic Bilbao,2886,206,15.2,0.12,0.05,2.75,3.20,2.75,2.80,3.15,2.70
+2026-04-15,Sevilla,Villarreal,559,834,-22.1,-0.18,0.02,2.20,3.30,3.35,2.25,3.25,3.30
+2026-04-18,Real Madrid,Valencia,541,105,72.8,0.38,-0.12,1.60,3.70,5.25,1.58,3.75,5.30
