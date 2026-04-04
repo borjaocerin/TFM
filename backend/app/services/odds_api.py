@@ -206,8 +206,8 @@ def _parse_h2h_outcomes(
     away_team: str,
     team_map: dict[str, str],
 ) -> dict[str, Any]:
-    home_key = _normalize_text(home_team)
-    away_key = _normalize_text(away_team)
+    home_key = _normalize_text(_canonical_team(home_team, team_map))
+    away_key = _normalize_text(_canonical_team(away_team, team_map))
 
     prices_h: list[float] = []
     prices_d: list[float] = []
