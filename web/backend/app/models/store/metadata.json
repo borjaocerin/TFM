@@ -1,6 +1,6 @@
 {
-  "trained_at": "2026-04-04T22:29:14.755962+00:00",
-  "dataset_path": "/app/data/out/laliga_enriched_all.csv",
+  "trained_at": "2026-04-07T09:51:46.175175+00:00",
+  "dataset_path": "C:\\Users\\borja.ocerinjauregui\\Desktop\\TFM\\TFM\\data\\out\\laliga_enriched_all.csv",
   "feature_columns": [
     "round",
     "home_team_id",
@@ -32,9 +32,9 @@
     "f1_macro": 0.7333333333333334
   },
   "fit_metrics": {
-    "log_loss": 0.1790392085482709,
-    "brier": 0.06369003305127502,
-    "ece": 0.1022545731150059,
+    "log_loss": 0.17903920854827102,
+    "brier": 0.06369003305127513,
+    "ece": 0.10225457311500595,
     "accuracy": 1.0,
     "f1_macro": 1.0
   },
@@ -45,7 +45,17 @@
       "brier": 0.20862487370583865,
       "ece": 0.1903975399709916,
       "accuracy": 0.75,
-      "f1_macro": 0.7333333333333334
+      "f1_macro": 0.7333333333333334,
+      "relative_improvement_pct": 62.74591479922943
+    },
+    {
+      "model": "voting_soft",
+      "log_loss": 0.3693961553962549,
+      "brier": 0.21181773735506068,
+      "ece": 0.2935983599806611,
+      "accuracy": 0.75,
+      "f1_macro": 0.7333333333333334,
+      "relative_improvement_pct": 51.71719365004945
     },
     {
       "model": "logreg_balanced",
@@ -53,7 +63,17 @@
       "brier": 0.3009545743455139,
       "ece": 0.20956973421348832,
       "accuracy": 0.75,
-      "f1_macro": 0.7333333333333334
+      "f1_macro": 0.7333333333333334,
+      "relative_improvement_pct": 49.33152984783167
+    },
+    {
+      "model": "dummy_uniform",
+      "log_loss": 0.6931471805599453,
+      "brier": 0.5,
+      "ece": 0.25,
+      "accuracy": 0.75,
+      "f1_macro": 0.42857142857142855,
+      "relative_improvement_pct": 9.400543015696623
     },
     {
       "model": "extra_trees",
@@ -61,7 +81,8 @@
       "brier": 0.5513777777777777,
       "ece": 0.36333333333333334,
       "accuracy": 0.75,
-      "f1_macro": 0.7333333333333334
+      "f1_macro": 0.7333333333333334,
+      "relative_improvement_pct": 1.8830292539003861
     },
     {
       "model": "random_forest",
@@ -69,7 +90,17 @@
       "brier": 0.5584113281249999,
       "ece": 0.36406249999999996,
       "accuracy": 0.25,
-      "f1_macro": 0.2
+      "f1_macro": 0.2,
+      "relative_improvement_pct": 1.102578423505168
+    },
+    {
+      "model": "dummy_prior",
+      "log_loss": 0.7650676986728906,
+      "brier": 0.5625,
+      "ece": 0.375,
+      "accuracy": 0.75,
+      "f1_macro": 0.42857142857142855,
+      "relative_improvement_pct": 0.0
     },
     {
       "model": "hist_gb",
@@ -77,17 +108,27 @@
       "brier": 0.5625,
       "ece": 0.375,
       "accuracy": 0.75,
-      "f1_macro": 0.42857142857142855
+      "f1_macro": 0.42857142857142855,
+      "relative_improvement_pct": 0.0
+    },
+    {
+      "model": "dummy_most_frequent",
+      "log_loss": 9.010913347279288,
+      "brier": 0.5,
+      "ece": 0.125,
+      "accuracy": 0.75,
+      "f1_macro": 0.42857142857142855,
+      "relative_improvement_pct": -1077.7929407959439
     }
   ],
   "reliability_plot": "/static/reliability_latest.png",
-  "metrics_report_path": "/app/data/out/model_metrics.txt",
-  "eda_missing_report_path": "/app/data/out/eda_missing_report.json",
+  "metrics_report_path": "C:\\Users\\borja.ocerinjauregui\\Desktop\\TFM\\TFM\\data\\out\\model_metrics.txt",
+  "eda_missing_report_path": "C:\\Users\\borja.ocerinjauregui\\Desktop\\TFM\\TFM\\data\\out\\eda_missing_report.json",
   "training_filters": {
     "rows_before": 6,
     "rows_after": 6,
-    "min_season": null,
-    "xg_poss_min_coverage_pct": null,
+    "min_season": 2019,
+    "xg_poss_min_coverage_pct": 80.0,
     "seasons_selected": [
       2025.0
     ]

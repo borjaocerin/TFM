@@ -1,4 +1,4 @@
-ARG PY_BASE_IMAGE=rest-service:latest
+ARG PY_BASE_IMAGE=python:3.11-slim
 FROM ${PY_BASE_IMAGE}
 
 ENV PYTHONDONTWRITEBYTECODE=1
@@ -16,7 +16,7 @@ COPY modelos /app/modelos
 COPY data /app/data
 COPY web/backend/entrypoint.sh /app/entrypoint.sh
 
-RUN chmod +x /app/entrypoint.sh
+RUN sed -i 's/\r$//' /app/entrypoint.sh && chmod +x /app/entrypoint.sh
 
 ENV DATA_DIR=/app/data
 ENV OUTPUT_DIR=/app/data/out
@@ -24,4 +24,4 @@ ENV MODEL_DIR=/app/backend/app/models/store
 
 EXPOSE 8000
 
-ENTRYPOINT ["/app/entrypoint.sh"]
+ENTRYPOINT ["sh", "/app/entrypoint.sh"]

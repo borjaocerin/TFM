@@ -1,7 +1,7 @@
 MODEL METRICS REPORT
 ====================
-trained_at_utc: 2026-04-04T22:29:14.755962+00:00
-dataset_path: /app/data/out/laliga_enriched_all.csv
+trained_at_utc: 2026-04-07T09:51:46.175175+00:00
+dataset_path: C:\Users\borja.ocerinjauregui\Desktop\TFM\TFM\data\out\laliga_enriched_all.csv
 best_model: logreg
 selection_metric: log_loss
 selection_direction: min
@@ -21,8 +21,13 @@ fit_brier: 0.063690
 fit_ece: 0.102255
 fit_accuracy: 1.000000
 fit_f1_macro: 1.000000
- - logreg: log_loss=0.285019, accuracy=0.750000, brier=0.208625, ece=0.190398, f1_macro=0.733333
- - logreg_balanced: log_loss=0.387648, accuracy=0.750000, brier=0.300955, ece=0.209570, f1_macro=0.733333
- - extra_trees: log_loss=0.750661, accuracy=0.750000, brier=0.551378, ece=0.363333, f1_macro=0.733333
- - random_forest: log_loss=0.756632, accuracy=0.250000, brier=0.558411, ece=0.364062, f1_macro=0.200000
- - hist_gb: log_loss=0.765068, accuracy=0.750000, brier=0.562500, ece=0.375000, f1_macro=0.428571
+baseline_reference: dummy_prior (log_loss=0.765068)
+ - logreg: log_loss=0.285019, accuracy=0.750000, brier=0.208625, ece=0.190398, f1_macro=0.733333, improvement_vs_baseline_pct=+62.75%
+ - voting_soft: log_loss=0.369396, accuracy=0.750000, brier=0.211818, ece=0.293598, f1_macro=0.733333, improvement_vs_baseline_pct=+51.72%
+ - logreg_balanced: log_loss=0.387648, accuracy=0.750000, brier=0.300955, ece=0.209570, f1_macro=0.733333, improvement_vs_baseline_pct=+49.33%
+ - dummy_uniform: log_loss=0.693147, accuracy=0.750000, brier=0.500000, ece=0.250000, f1_macro=0.428571, improvement_vs_baseline_pct=+9.40%
+ - extra_trees: log_loss=0.750661, accuracy=0.750000, brier=0.551378, ece=0.363333, f1_macro=0.733333, improvement_vs_baseline_pct=+1.88%
+ - random_forest: log_loss=0.756632, accuracy=0.250000, brier=0.558411, ece=0.364062, f1_macro=0.200000, improvement_vs_baseline_pct=+1.10%
+ - dummy_prior: log_loss=0.765068, accuracy=0.750000, brier=0.562500, ece=0.375000, f1_macro=0.428571, improvement_vs_baseline_pct=+0.00%
+ - hist_gb: log_loss=0.765068, accuracy=0.750000, brier=0.562500, ece=0.375000, f1_macro=0.428571, improvement_vs_baseline_pct=+0.00%
+ - dummy_most_frequent: log_loss=9.010913, accuracy=0.750000, brier=0.500000, ece=0.125000, f1_macro=0.428571, improvement_vs_baseline_pct=-1077.79%

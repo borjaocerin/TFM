@@ -10,6 +10,7 @@ from urllib.request import Request, urlopen
 
 import numpy as np
 import pandas as pd
+from sklearn.linear_model import LogisticRegression
 
 from app.core.config import settings
 from modelos.models.model_store import ModelStore
@@ -1269,6 +1270,40 @@ def _prepare_prediction_input(request: PredictRequest) -> pd.DataFrame:
     return pd.read_csv(path)
 
 
+def _ensure_logreg_compat(model: Any) -> None:
+    """Patch legacy sklearn payloads that miss LogisticRegression.multi_class."""
+
+    visited: set[int] = set()
+
+    def walk(node: Any) -> None:
+        if node is None:
+            return
+
+        node_id = id(node)
+        if node_id in visited:
+            return
+        visited.add(node_id)
+
+        if isinstance(node, LogisticRegression) and not hasattr(node, "multi_class"):
+            node.multi_class = "auto"
+
+        if isinstance(node, dict):
+            for value in node.values():
+                walk(value)
+            return
+
+        if isinstance(node, (list, tuple, set)):
+            for value in node:
+                walk(value)
+            return
+
+        for attr in ["steps", "named_steps", "estimator", "estimator_", "calibrated_classifiers_"]:
+            if hasattr(node, attr):
+                walk(getattr(node, attr))
+
+    walk(model)
+
+
 def predict_matches(request: PredictRequest) -> dict[str, Any]:
     features_df = _prepare_prediction_input(request)
 
@@ -1284,6 +1319,7 @@ def predict_matches(request: PredictRequest) -> dict[str, Any]:
         payload, _ = store.load()
 
     model = payload["model"]
+    _ensure_logreg_compat(model)
     feature_columns: list[str] = payload["feature_columns"]
 
     for column in feature_columns:
@@ -1371,14 +1407,23 @@ def predict_selected_upcoming_match(request: PredictUpcomingRequest) -> dict[str
 
     fixture_df = pd.DataFrame([fixture_payload])
 
-    historical_df = pd.read_csv(historical_path)
-    enriched = enrich_fixtures(fixture_df, historical_df, DEFAULT_WINDOWS, team_map)
+    prediction_note: str | None = None
+    try:
+        historical_df = pd.read_csv(historical_path)
+        enriched = enrich_fixtures(fixture_df, historical_df, DEFAULT_WINDOWS, team_map)
 
-    elo_path = defaults["elo_csv"]
-    if elo_path.exists():
-        enriched = enrich_with_elo(enriched, elo_path, team_map)
+        elo_path = defaults["elo_csv"]
+        if elo_path.exists():
+            enriched = enrich_with_elo(enriched, elo_path, team_map)
 
-    prediction = predict_matches(PredictRequest(fixtures=enriched.to_dict(orient="records")))
+        prediction = predict_matches(PredictRequest(fixtures=enriched.to_dict(orient="records")))
+    except Exception as exc:
+        # Keep /predict/upcoming available even when feature enrichment fails for a fixture.
+        prediction = predict_matches(PredictRequest(fixtures=fixture_df.to_dict(orient="records")))
+        prediction_note = (
+            "Prediccion generada con fallback sin enriquecimiento de features"
+            f" ({type(exc).__name__})"
+        )
     prediction_row = prediction["predictions"][0] if prediction["predictions"] else {}
 
     market_odds: dict[str, Any] | None = None
@@ -1396,6 +1441,9 @@ def predict_selected_upcoming_match(request: PredictUpcomingRequest) -> dict[str
         for key in ["odds_avg_h", "odds_avg_d", "odds_avg_a", "odds_best_h", "odds_best_d", "odds_best_a"]:
             if key in market_odds:
                 prediction_row[key] = market_odds[key]
+
+    if prediction_note is not None:
+        prediction_row["prediction_note"] = prediction_note
 
     round_value = ""
     if "round" in fixture_df.columns:

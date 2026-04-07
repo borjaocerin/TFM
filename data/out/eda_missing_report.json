@@ -1,14 +1,14 @@
 {
-  "dataset_path": "/app/data/out/laliga_enriched_all.csv",
-  "created_at_utc": "2026-04-04T22:29:11.605169+00:00",
+  "dataset_path": "C:\\Users\\borja.ocerinjauregui\\Desktop\\TFM\\TFM\\data\\out\\laliga_enriched_all.csv",
+  "created_at_utc": "2026-04-07T09:51:38.374588+00:00",
   "rows_raw": 6,
   "rows_filtered": 6,
   "columns": 24,
   "filters": {
     "rows_before": 6,
     "rows_after": 6,
-    "min_season": null,
-    "xg_poss_min_coverage_pct": null,
+    "min_season": 2019,
+    "xg_poss_min_coverage_pct": 80.0,
     "seasons_selected": [
       2025.0
     ]

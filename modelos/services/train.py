@@ -10,8 +10,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from sklearn.calibration import CalibratedClassifierCV
+from sklearn.dummy import DummyClassifier
 from sklearn.ensemble import ExtraTreesClassifier, HistGradientBoostingClassifier
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.ensemble import VotingClassifier
 from sklearn.impute import SimpleImputer
 from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import TimeSeriesSplit
@@ -274,8 +276,12 @@ def _select_training_data(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.Series, li
 
 def _candidate_estimators(use_xgb: bool, use_catboost: bool) -> dict[str, Any]:
     estimators: dict[str, Any] = {
+        "dummy_prior": DummyClassifier(strategy="prior"),
+        "dummy_most_frequent": DummyClassifier(strategy="most_frequent"),
+        "dummy_uniform": DummyClassifier(strategy="uniform", random_state=42),
         "logreg": LogisticRegression(max_iter=2000),
         "logreg_balanced": LogisticRegression(max_iter=2000, class_weight="balanced"),
+        "voting_soft": "voting_soft",
         "random_forest": RandomForestClassifier(
             n_estimators=400,
             random_state=42,
@@ -325,7 +331,44 @@ def _candidate_estimators(use_xgb: bool, use_catboost: bool) -> dict[str, Any]:
     return estimators
 
 
-def _build_pipeline(name: str, estimator: Any) -> Pipeline:
+def _build_pipeline(name: str, estimator: Any) -> Any:
+    if name == "voting_soft":
+        base_estimators = [
+            (
+                "lr",
+                Pipeline(
+                    steps=[
+                        ("imputer", SimpleImputer(strategy="median")),
+                        ("scaler", StandardScaler()),
+                        ("model", LogisticRegression(max_iter=2000)),
+                    ]
+                ),
+            ),
+            (
+                "hgb",
+                Pipeline(
+                    steps=[
+                        ("imputer", SimpleImputer(strategy="median")),
+                        (
+                            "model",
+                            HistGradientBoostingClassifier(
+                                learning_rate=0.05,
+                                max_depth=6,
+                                max_iter=500,
+                                random_state=42,
+                            ),
+                        ),
+                    ]
+                ),
+            ),
+        ]
+        return VotingClassifier(
+            estimators=base_estimators,
+            voting="soft",
+            weights=[2.0, 1.0],
+            n_jobs=-1,
+        )
+
     if name in {"logreg", "logreg_balanced"}:
         return Pipeline(
             steps=[
@@ -364,6 +407,54 @@ def _sort_leaderboard(
             float(item.get("brier", np.inf)),
         ),
     )
+
+
+def _baseline_reference(leaderboard: list[dict[str, Any]]) -> dict[str, Any] | None:
+    preferred = ["dummy_prior", "dummy_most_frequent", "dummy_uniform"]
+    for model_name in preferred:
+        for item in leaderboard:
+            if str(item.get("model")) == model_name:
+                return item
+
+    for item in leaderboard:
+        if str(item.get("model", "")).startswith("dummy_"):
+            return item
+    return None
+
+
+def _annotate_relative_improvement(
+    leaderboard: list[dict[str, Any]],
+    selection_metric: str,
+) -> tuple[list[dict[str, Any]], str | None, float | None]:
+    baseline = _baseline_reference(leaderboard)
+    if baseline is None:
+        return leaderboard, None, None
+
+    baseline_name = str(baseline.get("model"))
+    baseline_value = float(baseline.get(selection_metric, np.nan))
+    if not np.isfinite(baseline_value):
+        return leaderboard, baseline_name, None
+
+    out: list[dict[str, Any]] = []
+    for item in leaderboard:
+        row = dict(item)
+        metric_value = float(row.get(selection_metric, np.nan))
+        improvement_pct = np.nan
+
+        if np.isfinite(metric_value):
+            if selection_metric in LOWER_IS_BETTER_METRICS:
+                denom = abs(baseline_value)
+                if denom > 0.0:
+                    improvement_pct = ((baseline_value - metric_value) / denom) * 100.0
+            else:
+                denom = abs(baseline_value)
+                if denom > 0.0:
+                    improvement_pct = ((metric_value - baseline_value) / denom) * 100.0
+
+        row["relative_improvement_pct"] = float(improvement_pct) if np.isfinite(improvement_pct) else np.nan
+        out.append(row)
+
+    return out, baseline_name, baseline_value
 
 
 def _cross_val_metrics(X: pd.DataFrame, y: pd.Series, model: Pipeline) -> dict[str, float]:
@@ -424,6 +515,8 @@ def _write_metrics_report(
     cv_metrics: dict[str, float],
     leaderboard: list[dict[str, Any]],
     dataset_path: Path,
+    baseline_model_name: str | None = None,
+    baseline_metric_value: float | None = None,
     fit_metrics: dict[str, float] | None = None,
 ) -> Path:
     settings.output_dir.mkdir(parents=True, exist_ok=True)
@@ -461,7 +554,17 @@ def _write_metrics_report(
             ]
         )
 
+    if baseline_model_name is not None and baseline_metric_value is not None and np.isfinite(baseline_metric_value):
+        lines.append(
+            f"baseline_reference: {baseline_model_name} ({selection_metric}={baseline_metric_value:.6f})"
+        )
+
     for item in leaderboard:
+        rel_improvement = item.get("relative_improvement_pct")
+        rel_text = "n/a"
+        if rel_improvement is not None and np.isfinite(float(rel_improvement)):
+            rel_text = f"{float(rel_improvement):+.2f}%"
+
         lines.append(
             " - "
             + f"{item['model']}: "
@@ -469,7 +572,8 @@ def _write_metrics_report(
             + f"accuracy={float(item['accuracy']):.6f}, "
             + f"brier={float(item['brier']):.6f}, "
             + f"ece={float(item['ece']):.6f}, "
-            + f"f1_macro={float(item['f1_macro']):.6f}"
+            + f"f1_macro={float(item['f1_macro']):.6f}, "
+            + f"improvement_vs_baseline_pct={rel_text}"
         )
 
     report_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
@@ -487,16 +591,27 @@ def train_and_calibrate(request: TrainRequest) -> dict[str, Any]:
     leaderboard: list[dict[str, Any]] = []
 
     for model_name, estimator in estimators.items():
-        pipeline = _build_pipeline(model_name, estimator)
-        metrics = _cross_val_metrics(X, y, pipeline)
-        leaderboard.append({"model": model_name, **metrics})
+        try:
+            pipeline = _build_pipeline(model_name, estimator)
+            metrics = _cross_val_metrics(X, y, pipeline)
+            leaderboard.append({"model": model_name, **metrics})
+        except Exception:
+            # Skip unstable candidates on tiny time splits; keep training resilient.
+            continue
+
+    if not leaderboard:
+        raise ValueError("Ningun modelo pudo evaluarse correctamente en validacion temporal")
 
     leaderboard = _sort_leaderboard(leaderboard, request.selection_metric)
+    leaderboard, baseline_model_name, baseline_metric_value = _annotate_relative_improvement(
+        leaderboard,
+        request.selection_metric,
+    )
     best_model_name = str(leaderboard[0]["model"])
     best_cv_metrics = {
         key: float(value)
         for key, value in leaderboard[0].items()
-        if key != "model"
+        if key not in {"model", "relative_improvement_pct"}
     }
 
     best_pipeline = _build_pipeline(best_model_name, estimators[best_model_name])
@@ -529,6 +644,8 @@ def train_and_calibrate(request: TrainRequest) -> dict[str, Any]:
         cv_metrics=best_cv_metrics,
         leaderboard=leaderboard,
         dataset_path=dataset_path,
+        baseline_model_name=baseline_model_name,
+        baseline_metric_value=baseline_metric_value,
         fit_metrics=fit_metrics,
     )
 

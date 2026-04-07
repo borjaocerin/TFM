@@ -9,8 +9,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from sklearn.calibration import CalibratedClassifierCV
+from sklearn.dummy import DummyClassifier
 from sklearn.ensemble import ExtraTreesClassifier, HistGradientBoostingClassifier
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.ensemble import VotingClassifier
 from sklearn.impute import SimpleImputer
 from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import TimeSeriesSplit
@@ -149,7 +151,11 @@ def _load_training_data(dataset_path: Path) -> tuple[pd.DataFrame, pd.Series, li
 
 def _candidate_estimators(use_xgb: bool, use_catboost: bool) -> dict[str, Any]:
     estimators: dict[str, Any] = {
+        "dummy_prior": DummyClassifier(strategy="prior"),
+        "dummy_most_frequent": DummyClassifier(strategy="most_frequent"),
+        "dummy_uniform": DummyClassifier(strategy="uniform", random_state=42),
         "logreg": LogisticRegression(max_iter=2000),
+        "voting_soft": "voting_soft",
         "random_forest": RandomForestClassifier(
             n_estimators=400,
             random_state=42,
@@ -193,7 +199,44 @@ def _candidate_estimators(use_xgb: bool, use_catboost: bool) -> dict[str, Any]:
     return estimators
 
 
-def _build_pipeline(name: str, estimator: Any) -> Pipeline:
+def _build_pipeline(name: str, estimator: Any) -> Any:
+    if name == "voting_soft":
+        base_estimators = [
+            (
+                "lr",
+                Pipeline(
+                    steps=[
+                        ("imputer", SimpleImputer(strategy="median")),
+                        ("scaler", StandardScaler()),
+                        ("model", LogisticRegression(max_iter=2000)),
+                    ]
+                ),
+            ),
+            (
+                "hgb",
+                Pipeline(
+                    steps=[
+                        ("imputer", SimpleImputer(strategy="median")),
+                        (
+                            "model",
+                            HistGradientBoostingClassifier(
+                                learning_rate=0.05,
+                                max_depth=6,
+                                max_iter=500,
+                                random_state=42,
+                            ),
+                        ),
+                    ]
+                ),
+            ),
+        ]
+        return VotingClassifier(
+            estimators=base_estimators,
+            voting="soft",
+            weights=[2.0, 1.0],
+            n_jobs=-1,
+        )
+
     if name == "logreg":
         return Pipeline(
             steps=[
@@ -320,9 +363,16 @@ def train_and_calibrate(request: TrainRequest) -> dict[str, Any]:
     leaderboard: list[dict[str, Any]] = []
 
     for model_name, estimator in estimators.items():
-        pipeline = _build_pipeline(model_name, estimator)
-        metrics = _cross_val_metrics(X, y, pipeline)
-        leaderboard.append({"model": model_name, **metrics})
+        try:
+            pipeline = _build_pipeline(model_name, estimator)
+            metrics = _cross_val_metrics(X, y, pipeline)
+            leaderboard.append({"model": model_name, **metrics})
+        except Exception:
+            # Skip unstable candidates on tiny time splits; keep training resilient.
+            continue
+
+    if not leaderboard:
+        raise ValueError("Ningun modelo pudo evaluarse correctamente en validacion temporal")
 
     leaderboard = sorted(
         leaderboard,

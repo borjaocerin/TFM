@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
+import axios from "axios";
 
 import { type PredictUpcomingResponse, predictUpcomingFixture } from "../lib/api";
 import {
@@ -88,7 +89,9 @@ export function MatchPredictionPage() {
         }
 
         let errorMsg = "Error desconocido";
-        if (loadError instanceof Error) {
+        if (axios.isAxiosError(loadError) && loadError.code === "ERR_NETWORK") {
+          errorMsg = "No se pudo conectar con el backend (revisa que la API este levantada y CORS configurado).";
+        } else if (loadError instanceof Error) {
           errorMsg = loadError.message;
           if ("response" in loadError && loadError.response && typeof loadError.response === "object" && "data" in loadError.response) {
             const data = loadError.response.data as Record<string, unknown>;
