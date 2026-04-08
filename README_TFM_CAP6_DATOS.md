@@ -18,6 +18,17 @@ El proyecto integra varias fuentes complementarias, cada una con una funcion esp
 4. Ratings ELO (externos u obtenidos internamente).
 5. Fixtures futuros para inferencia.
 
+### 6.1.0 Procedencia y trazabilidad de las fuentes
+
+En la medida en que el repositorio lo permite, la procedencia de cada bloque de datos es la siguiente:
+
+1. Historico base consolidado en el propio proyecto a partir de CSV locales en data/historical/laliga_merged_matches.csv.
+2. Football-Data.co.uk para estadisticas por temporada, cuotas y metadatos del partido. La referencia de columnas del ETL apunta a la documentacion oficial: https://www.football-data.co.uk/notes.txt.
+3. The Sports DB como ejemplo de API de fixtures futuros configurable en la aplicacion, visible en la configuracion del proyecto para generar partidos upcoming.
+4. The Odds API para cuotas live y snapshots de mercado, usada para obtener probabilidades 1X2 y almacenar historicos de cuotas.
+5. ELO snapshots tipo ClubElo / ratings consolidados, si estan disponibles en data/elo/ELO_RATINGS.csv; en caso contrario, el sistema calcula un ELO interno secuencial.
+6. Resultados manuales de apoyo en data/fixtures/proximosPartidos.json, utilizados para incorporar partidos ya disputados y completar marcadores pendientes.
+
 ### 6.1.1 Historico base
 
 Archivo principal: data/historical/laliga_merged_matches.csv.
@@ -41,6 +52,8 @@ Aporta una segunda capa de informacion orientada a contexto competitivo y mercad
 - Cuotas de apertura y cierre (promedios o fuentes alternativas).
 - Variables utiles para contraste con predicciones del modelo.
 
+La documentacion del ETL referencia expresamente la nota oficial de columnas de Football-Data.co.uk.
+
 ### 6.1.3 Resultados manuales de partidos recientes
 
 Archivo: data/fixtures/proximosPartidos.json.
@@ -55,7 +68,7 @@ Aunque su nombre indica proximos partidos, tambien puede contener marcadores fin
 
 Archivo opcional: data/elo/ELO_RATINGS.csv.
 
-Si existe, se integra mediante join temporal por equipo y fecha. Si no existe, el sistema genera un ELO interno partido a partido para no perder esta senal de fuerza relativa.
+Se utiliza como fuente externa de fuerza relativa por equipo y fecha. Si el fichero no existe, el sistema genera un ELO interno partido a partido para no perder esta senal de fuerza relativa.
 
 ### 6.1.5 Fixtures de prediccion
 
