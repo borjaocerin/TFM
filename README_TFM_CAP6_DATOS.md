@@ -132,6 +132,27 @@ Para documentar visualmente el EDA en el TFM, es recomendable incluir:
 
 El repositorio incluye scripts para generar estas figuras en docs/screens.
 
+### 6.3.2 Interpretacion de metricas de calidad pre-EDA
+
+En la figura de calidad pre-EDA (5 dimensiones), la metrica de Validez puede aparecer en torno a 25% (por ejemplo, 25.2%). Esto no implica necesariamente que el 75% de los registros presentes sean incorrectos, sino que la definicion aplicada es estricta y exige que cada fila cumpla simultaneamente todas las reglas de dominio consideradas.
+
+Reglas usadas en Validez (antes del tratamiento):
+
+1. home_goals y away_goals deben ser numericos y >= 0.
+2. poss_home y poss_away deben estar en [0, 100].
+3. sot_home <= sh_home y sot_away <= sh_away.
+4. pk_home <= pkatt_home y pk_away <= pkatt_away.
+
+La metrica se calcula como porcentaje de filas que satisfacen todas las reglas a la vez. Por tanto, si una parte importante de columnas de eventos (posesion, tiros, penaltis) viene vacia en el historico crudo, esas filas fallan la validacion conjunta y el porcentaje baja de forma notable.
+
+En el estado actual observado para el historico pre-EDA, las columnas de eventos presentan aproximadamente 74.76% de valores nulos, lo que explica que la Validez conjunta quede cerca de 25.24%.
+
+Conclusiones para interpretar correctamente el resultado:
+
+1. Integridad y Validez no deben confundirse: la primera mide completitud/coherencia minima y la segunda reglas de dominio.
+2. Una Validez baja en pre-EDA puede deberse sobre todo a ausencia de datos, no a contradicciones logicas en los datos disponibles.
+3. Tras limpieza e imputacion controlada, la cobertura y el cumplimiento de reglas mejoran en el dataset enriquecido.
+
 ## 6.4 Limpieza de datos
 
 La limpieza se implementa con reglas explicitas y reproducibles, agrupadas en cinco etapas.

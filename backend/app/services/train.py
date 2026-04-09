@@ -134,6 +134,10 @@ def _load_training_data(dataset_path: Path) -> tuple[pd.DataFrame, pd.Series, li
     }
     excluded = excluded | LEAKAGE_COLUMNS
 
+    # No usar cuotas de mercado como features para evitar sesgo por informacion externa.
+    odds_columns = {column for column in df.columns if column.startswith("odds_")}
+    excluded = excluded | odds_columns
+
     feature_columns = [
         column
         for column in df.columns

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import re
+import unicodedata
 from pathlib import Path
 from typing import Any
 
@@ -175,6 +177,172 @@ def plot_missing_by_season(dataset_path: Path, outdir: Path) -> Path:
     ax.legend(loc="lower right")
 
     out = outdir / "eda_missing_coverage_by_season.png"
+    _save(fig, out)
+    return out
+
+
+def plot_data_quality_five_metrics(dataset_path: Path, outdir: Path) -> Path:
+    if not dataset_path.exists():
+        raise FileNotFoundError(f"No existe dataset en {dataset_path}")
+
+    df = pd.read_csv(dataset_path)
+    if df.empty:
+        raise ValueError("El dataset esta vacio")
+
+    # Integridad = filas con campos clave completos y sin contradiccion marcador-resultado.
+    integrity = np.nan
+    integrity_checks: list[pd.Series] = []
+
+    key_cols = [c for c in ["date", "home_team", "away_team", "home_goals", "away_goals", "result"] if c in df.columns]
+    if key_cols:
+        integrity_checks.append(df[key_cols].notna().all(axis=1))
+
+    if {"home_goals", "away_goals", "result"}.issubset(df.columns):
+        gh = pd.to_numeric(df["home_goals"], errors="coerce")
+        ga = pd.to_numeric(df["away_goals"], errors="coerce")
+        result = df["result"].astype(str).str.upper().str[0]
+        expected = np.where(gh > ga, "H", np.where(gh < ga, "A", "D"))
+        integrity_checks.append(gh.notna() & ga.notna() & result.notna() & (result == expected))
+
+    if integrity_checks:
+        integrity = float(pd.concat(integrity_checks, axis=1).all(axis=1).mean() * 100.0)
+
+    # Validez = reglas de dominio minimas sobre goles, posesion, tiros y penaltis.
+    validity = np.nan
+    validity_checks: list[pd.Series] = []
+
+    if {"home_goals", "away_goals"}.issubset(df.columns):
+        gh = pd.to_numeric(df["home_goals"], errors="coerce")
+        ga = pd.to_numeric(df["away_goals"], errors="coerce")
+        validity_checks.append(gh.notna() & (gh >= 0))
+        validity_checks.append(ga.notna() & (ga >= 0))
+
+    if {"poss_home", "poss_away"}.issubset(df.columns):
+        poss_h = pd.to_numeric(df["poss_home"], errors="coerce")
+        poss_a = pd.to_numeric(df["poss_away"], errors="coerce")
+        validity_checks.append(poss_h.notna() & poss_h.between(0, 100))
+        validity_checks.append(poss_a.notna() & poss_a.between(0, 100))
+
+    if {"sh_home", "sh_away", "sot_home", "sot_away"}.issubset(df.columns):
+        sh_h = pd.to_numeric(df["sh_home"], errors="coerce")
+        sh_a = pd.to_numeric(df["sh_away"], errors="coerce")
+        sot_h = pd.to_numeric(df["sot_home"], errors="coerce")
+        sot_a = pd.to_numeric(df["sot_away"], errors="coerce")
+        validity_checks.append(sh_h.notna() & (sh_h >= 0) & sot_h.notna() & (sot_h >= 0) & (sot_h <= sh_h))
+        validity_checks.append(sh_a.notna() & (sh_a >= 0) & sot_a.notna() & (sot_a >= 0) & (sot_a <= sh_a))
+
+    if {"pk_home", "pk_away", "pkatt_home", "pkatt_away"}.issubset(df.columns):
+        pk_h = pd.to_numeric(df["pk_home"], errors="coerce")
+        pk_a = pd.to_numeric(df["pk_away"], errors="coerce")
+        pkatt_h = pd.to_numeric(df["pkatt_home"], errors="coerce")
+        pkatt_a = pd.to_numeric(df["pkatt_away"], errors="coerce")
+        validity_checks.append(pk_h.notna() & pkatt_h.notna() & (pk_h >= 0) & (pkatt_h >= 0) & (pk_h <= pkatt_h))
+        validity_checks.append(pk_a.notna() & pkatt_a.notna() & (pk_a >= 0) & (pkatt_a >= 0) & (pk_a <= pkatt_a))
+
+    if validity_checks:
+        validity = float(pd.concat(validity_checks, axis=1).all(axis=1).mean() * 100.0)
+
+    # Unicidad = porcentaje de claves de partido unicas (date, home_team, away_team).
+    uniqueness = np.nan
+    unique_cols = [c for c in ["date", "home_team", "away_team"] if c in df.columns]
+    if len(unique_cols) == 3:
+        unique_count = int(df[unique_cols].dropna().drop_duplicates().shape[0])
+        uniqueness = float((unique_count / len(df)) * 100.0)
+
+    # Consistencia = uniformidad de nomenclatura y formatos entre filas.
+    consistency = np.nan
+    consistency_checks: list[pd.Series] = []
+
+    if "result" in df.columns:
+        result = df["result"].astype(str).str.upper().str[0]
+        consistency_checks.append(result.isin(["H", "D", "A"]))
+
+    if "season" in df.columns:
+        season_num = pd.to_numeric(df["season"], errors="coerce")
+        consistency_checks.append(season_num.notna())
+
+    if {"home_team", "away_team"}.issubset(df.columns):
+        home_ok = df["home_team"].astype(str).str.strip().str.len() > 0
+        away_ok = df["away_team"].astype(str).str.strip().str.len() > 0
+        consistency_checks.append(home_ok & away_ok)
+
+        # Penaliza variantes del mismo equipo (acentos, abreviaturas o grafias distintas)
+        # tomando como canonica la forma mas frecuente por token normalizado.
+        def _norm_team(name: str) -> str:
+            txt = str(name).strip().lower()
+            txt = "".join(ch for ch in unicodedata.normalize("NFKD", txt) if not unicodedata.combining(ch))
+            txt = re.sub(r"[^a-z0-9 ]+", " ", txt)
+            txt = re.sub(r"\s+", " ", txt).strip()
+            return txt
+
+        team_cells = pd.concat([df["home_team"], df["away_team"]], ignore_index=True).dropna().astype(str)
+        if not team_cells.empty:
+            norm_df = pd.DataFrame({"raw": team_cells})
+            norm_df["norm"] = norm_df["raw"].map(_norm_team)
+            canonical = norm_df.groupby("norm")["raw"].agg(lambda x: x.value_counts().idxmax())
+            consistent_team_cells = norm_df.apply(lambda row: row["raw"] == canonical[row["norm"]], axis=1)
+            team_name_consistency = float(consistent_team_cells.mean() * 100.0)
+        else:
+            team_name_consistency = np.nan
+    else:
+        team_name_consistency = np.nan
+
+    if "date" in df.columns:
+        parsed_date = pd.to_datetime(df["date"], errors="coerce")
+        consistency_checks.append(parsed_date.notna())
+
+    if consistency_checks:
+        base_consistency = float(pd.concat(consistency_checks, axis=1).all(axis=1).mean() * 100.0)
+        if np.isfinite(team_name_consistency):
+            consistency = min(base_consistency, team_name_consistency)
+        else:
+            consistency = base_consistency
+
+    # Exactitud = proxy de fidelidad al partido real: goles y resultado coinciden.
+    accuracy = np.nan
+    if {"home_goals", "away_goals", "result"}.issubset(df.columns):
+        gh = pd.to_numeric(df["home_goals"], errors="coerce")
+        ga = pd.to_numeric(df["away_goals"], errors="coerce")
+        result = df["result"].astype(str).str.upper().str[0]
+        evaluable = gh.notna() & ga.notna() & result.notna()
+        expected = np.where(gh > ga, "H", np.where(gh < ga, "A", "D"))
+        if evaluable.any():
+            accuracy = float((result[evaluable] == expected[evaluable]).mean() * 100.0)
+
+    metrics = [
+        ("Integridad", integrity),
+        ("Validez", validity),
+        ("Unicidad", uniqueness),
+        ("Consistencia", consistency),
+        ("Exactitud", accuracy),
+    ]
+
+    def _color_for(pct: float) -> str:
+        if not np.isfinite(pct):
+            return "#9aa0a6"
+        if pct >= 95.0:
+            return "#2ca02c"
+        if pct >= 85.0:
+            return "#ffb000"
+        return "#d62728"
+
+    fig, axes = plt.subplots(1, 5, figsize=(18, 4.2))
+    for ax, (label, value) in zip(axes, metrics):
+        pct = float(np.clip(value, 0.0, 100.0)) if np.isfinite(value) else 0.0
+        color = _color_for(value)
+        ax.pie(
+            [pct, 100.0 - pct],
+            startangle=90,
+            colors=[color, "#e8eaed"],
+            wedgeprops={"width": 0.34, "edgecolor": "white"},
+            counterclock=False,
+        )
+        text = f"{value:.1f}%" if np.isfinite(value) else "N/A"
+        ax.text(0, 0, text, ha="center", va="center", fontsize=12, weight="bold", color="#1f2933")
+        ax.set_title(label, fontsize=11)
+
+    fig.suptitle("Calidad de datos pre-EDA (porcentaje) - 5 dimensiones", fontsize=15, weight="bold")
+    out = outdir / "eda_data_quality_5metrics_pre_eda.png"
     _save(fig, out)
     return out
 
